@@ -26,6 +26,13 @@ namespace FlexCLI {
 	int subSteps;
 	int numFixedIter;
 
+	//added by dw:
+	NvFlexSolverDesc* solverDesc;
+	NvFlexCopyDesc* copyDesc;
+	NvFlexFeatureMode featureMode = eNvFlexFeatureModeDefault;
+	int maxContactsPerParticle = 6;
+
+
 	struct SimBuffers {
 		NvFlexBuffer* Particles;
 		NvFlexBuffer* Velocities;
@@ -49,6 +56,10 @@ namespace FlexCLI {
 		NvFlexBuffer* RigidStiffnesses;
 		NvFlexBuffer* RigidRotations;
 		NvFlexBuffer* RigidTranslations;
+		//dw
+		NvFlexBuffer* PlasticThresholds;
+		NvFlexBuffer* PlasticCreeps;
+		//
 		//Buffers for Springs
 		NvFlexBuffer* SpringPairIndices;
 		NvFlexBuffer* SpringLengths;
@@ -75,7 +86,7 @@ namespace FlexCLI {
 			Rotation = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
 			PrevRotation = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
 			Flags = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(int), eNvFlexBufferHost);
-			CollisionMeshVertices = NvFlexAllocBuffer(Library, maxCollisionMeshVertexCount, sizeof(float3), eNvFlexBufferHost);
+			CollisionMeshVertices = NvFlexAllocBuffer(Library, maxCollisionMeshVertexCount, sizeof(float4), eNvFlexBufferHost); //dw: changed to float4
 			CollisionMeshIndices = NvFlexAllocBuffer(Library, maxCollisionMeshIndexCount, sizeof(int) * 3, eNvFlexBufferHost);
 			CollisionConvexMeshPlanes = NvFlexAllocBuffer(Library, maxCollisionConvexShapePlanes, sizeof(float4), eNvFlexBufferHost);
 			RigidOffets = NvFlexAllocBuffer(Library, maxRigidBodies + 1, sizeof(int), eNvFlexBufferHost);
@@ -85,6 +96,8 @@ namespace FlexCLI {
 			RigidStiffnesses = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost);
 			RigidRotations = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float4), eNvFlexBufferHost);
 			RigidTranslations = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float3), eNvFlexBufferHost);
+			PlasticThresholds = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost); //dw
+			PlasticCreeps = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost); //dw
 			SpringPairIndices = NvFlexAllocBuffer(Library, maxSprings * 2, sizeof(int), eNvFlexBufferHost);
 			SpringLengths = NvFlexAllocBuffer(Library, maxSprings, sizeof(float), eNvFlexBufferHost);
 			SpringCoefficients = NvFlexAllocBuffer(Library, maxSprings, sizeof(float), eNvFlexBufferHost);
@@ -181,6 +194,16 @@ namespace FlexCLI {
 				NvFlexFreeBuffer(RigidTranslations);
 				RigidTranslations = NULL;
 			}
+			//dw
+			if (PlasticThresholds) {
+				NvFlexFreeBuffer(PlasticThresholds);
+				PlasticThresholds = NULL;
+			}
+			if (PlasticCreeps) {
+				NvFlexFreeBuffer(PlasticCreeps);
+				PlasticCreeps = NULL;
+			}
+			//
 			if (SpringPairIndices) {
 				NvFlexFreeBuffer(SpringPairIndices);
 				SpringPairIndices = NULL;
@@ -265,9 +288,9 @@ namespace FlexCLI {
 		Params.particleCollisionMargin = 0.0f;
 		Params.shapeCollisionMargin = 0.0f;
 		Params.collisionDistance = 0.0f;
-		Params.plasticThreshold = 0.0f;
-		Params.plasticCreep = 0.0f;
-		Params.fluid = true;
+		//Params.plasticThreshold = 0.0f; //dw: moved in flex 1.2
+		//Params.plasticCreep = 0.0f; //dw: moved in flex 1.2
+		//Params.fluid = true; //dw: moved in flex 1.2
 		Params.sleepThreshold = 0.0f;
 		Params.shockPropagation = 0.0f;
 		Params.restitution = 0.0f;
@@ -287,9 +310,9 @@ namespace FlexCLI {
 		Params.diffuseBuoyancy = 1.0f;
 		Params.diffuseDrag = 0.8f;
 		Params.diffuseBallistic = 16;
-		Params.diffuseSortAxis[0] = 0.0f;
-		Params.diffuseSortAxis[1] = 0.0f;
-		Params.diffuseSortAxis[2] = 0.0f;
+		//Params.diffuseSortAxis[0] = 0.0f; //dw: removed in flex 1.2 (?)
+		//Params.diffuseSortAxis[1] = 0.0f;
+		//Params.diffuseSortAxis[2] = 0.0f;
 		Params.diffuseLifetime = 2.0f;
 
 		// planes created after particles
@@ -300,7 +323,15 @@ namespace FlexCLI {
 
 		FlexForceFields = gcnew List<FlexForceField^>();
 
-		Solver = NvFlexCreateSolver(Library, maxParticles, maxDiffuseParticles, maxNeighborsPerParticle);
+		NvFlexSetSolverDescDefaults(solverDesc);
+
+		solverDesc->featureMode = featureMode;
+		solverDesc->maxParticles = maxParticles;
+		solverDesc->maxDiffuseParticles = maxDiffuseParticles;
+		solverDesc->maxNeighborsPerParticle = maxNeighborsPerParticle;
+		solverDesc->maxContactsPerParticle = maxContactsPerParticle;
+
+		Solver = NvFlexCreateSolver(Library, solverDesc);
 
 		if (ForceFieldCallback)
 			NvFlexExtDestroyForceFieldCallback(ForceFieldCallback);
@@ -378,12 +409,12 @@ namespace FlexCLI {
 
 
 			//assign vertex and face lists accordingly
-			float3* vertices = (float3*)NvFlexMap(Buffers.CollisionMeshVertices, 0);
+			float4* vertices = (float4*)NvFlexMap(Buffers.CollisionMeshVertices, 0); //dw: changed to float4
 			int* faces = (int*)NvFlexMap(Buffers.CollisionMeshIndices, 0);
 			array<float>^ v = flexCollisionGeometry->MeshVertices[i];
 			array<int>^ f = flexCollisionGeometry->MeshFaces[i];
 			for (int j = 0; j < v->Length / 3; j++)
-				vertices[j] = float3(-v[j * 3], -v[j * 3 + 1], -v[j * 3 + 2]);
+				vertices[j] = float4(-v[j * 3], -v[j * 3 + 1], -v[j * 3 + 2], 0.0f); //dw: changed to float4
 			for (int j = 0; j < f->Length; j++)
 				faces[j] = f[j];
 
@@ -494,14 +525,14 @@ namespace FlexCLI {
 			Params.diffuseBuoyancy = flexParams->DiffuseBuoyancy;
 			Params.diffuseDrag = flexParams->DiffuseDrag;
 			Params.diffuseLifetime = flexParams->DiffuseLifetime;
-			Params.diffuseSortAxis[0] = flexParams->DiffuseSortAxisX;
-			Params.diffuseSortAxis[1] = flexParams->DiffuseSortAxisZ;
-			Params.diffuseSortAxis[2] = flexParams->DiffuseSortAxisY;
-			Params.diffuseThreshold = flexParams->DiffuseThreshold;
+			//Params.diffuseSortAxis[0] = flexParams->DiffuseSortAxisX;
+			//Params.diffuseSortAxis[1] = flexParams->DiffuseSortAxisZ;
+			//Params.diffuseSortAxis[2] = flexParams->DiffuseSortAxisY;
+			//Params.diffuseThreshold = flexParams->DiffuseThreshold;
 			Params.dissipation = flexParams->Dissipation;
 			Params.drag = flexParams->Drag;
 			Params.dynamicFriction = flexParams->DynamicFriction;
-			Params.fluid = flexParams->Fluid;
+			//Params.fluid = flexParams->Fluid;
 			Params.fluidRestDistance = flexParams->FluidRestDistance;
 			Params.freeSurfaceDrag = flexParams->FreeSurfaceDrag;
 			Params.gravity[0] = flexParams->GravityX;
@@ -512,8 +543,8 @@ namespace FlexCLI {
 			Params.maxSpeed = flexParams->MaxSpeed;
 			Params.particleCollisionMargin = flexParams->ParticleCollisionMargin;
 			Params.particleFriction = flexParams->ParticleFriction;
-			Params.plasticCreep = flexParams->PlasticCreep;
-			Params.plasticThreshold = flexParams->PlasticThreshold;
+			//Params.plasticCreep = flexParams->PlasticCreep;
+			//Params.plasticThreshold = flexParams->PlasticThreshold;
 			Params.radius = flexParams->Radius;
 			Params.relaxationFactor = flexParams->RelaxationFactor;
 			Params.relaxationMode = NvFlexRelaxationMode(flexParams->RelaxationMode);
@@ -557,6 +588,8 @@ namespace FlexCLI {
 			s->RigidRestPositions,
 			s->RigidRestNormals,
 			s->RigidStiffnesses,
+			s->PlasticThresholds,
+			s->PlasticCreeps,
 			s->RigidRotations,
 			s->RigidTranslations);
 
@@ -657,18 +690,24 @@ namespace FlexCLI {
 		NvFlexUnmap(Buffers.Phases);
 		NvFlexUnmap(Buffers.Active);
 
-		NvFlexSetParticles(Solver, Buffers.Particles, n);
-		NvFlexSetVelocities(Solver, Buffers.Velocities, n);
-		NvFlexSetPhases(Solver, Buffers.Phases, n);
-		NvFlexSetActive(Solver, Buffers.Active, nActive);
+		copyDesc->srcOffset = 0;
+		copyDesc->dstOffset = 0;
+		copyDesc->elementCount = n;
+
+		NvFlexSetParticles(Solver, Buffers.Particles, copyDesc);
+		NvFlexSetVelocities(Solver, Buffers.Velocities, copyDesc);
+		NvFlexSetPhases(Solver, Buffers.Phases, copyDesc);
+		copyDesc->elementCount = nActive;
+		NvFlexSetActive(Solver, Buffers.Active, copyDesc);
 	}
 
 	List<FlexParticle^>^ Flex::GetParticles() {
 
 		List<FlexParticle^>^ parts = gcnew List<FlexParticle^>;
-		NvFlexGetParticles(Solver, Buffers.Particles, n);
-		NvFlexGetVelocities(Solver, Buffers.Velocities, n);
-		NvFlexGetPhases(Solver, Buffers.Phases, n);
+		copyDesc->elementCount = n;
+		NvFlexGetParticles(Solver, Buffers.Particles, copyDesc);
+		NvFlexGetVelocities(Solver, Buffers.Velocities, copyDesc);
+		NvFlexGetPhases(Solver, Buffers.Phases, copyDesc);
 
 		float4* particles = (float4*)NvFlexMap(Buffers.Particles, eNvFlexMapWait);
 		float3* velocities = (float3*)NvFlexMap(Buffers.Velocities, eNvFlexMapWait);
@@ -693,7 +732,7 @@ namespace FlexCLI {
 		return parts;
 	}
 
-	void Flex::SetRigids(List<int>^ offsets, List<int>^ indices, List<float>^ restPositions, List<float>^ restNormals, List<float>^ stiffnesses, List<float>^ rotations, List<float>^ translations) {
+	void Flex::SetRigids(List<int>^ offsets, List<int>^ indices, List<float>^ restPositions, List<float>^ restNormals, List<float>^ stiffnesses, List<float>^ plasticThresholds, List<float>^ plasticCreeps, List<float>^ rotations, List<float>^ translations) {
 		if (offsets[0] != 0)
 			throw gcnew Exception("FlexCLI: void Flex::SetRigids(...) Invalid input: ");
 		int numRigids = offsets->Count - 1;
@@ -709,6 +748,8 @@ namespace FlexCLI {
 		float* sti = (float*)NvFlexMap(Buffers.RigidStiffnesses, eNvFlexMapWait);
 		float4* rot = (float4*)NvFlexMap(Buffers.RigidRotations, eNvFlexMapWait);
 		float3* tra = (float3*)NvFlexMap(Buffers.RigidTranslations, eNvFlexMapWait);
+		float* thr = (float*)NvFlexMap(Buffers.PlasticThresholds, eNvFlexMapWait); //dw
+		float* creeps = (float*)NvFlexMap(Buffers.PlasticCreeps, eNvFlexMapWait); //dw
 
 		//assign everything
 		off[0] = 0;
@@ -719,6 +760,8 @@ namespace FlexCLI {
 				restNor[j] = float4(restNormals[j * 4], restNormals[j * 4 + 1], restNormals[j * 4 + 2], restNormals[j * 4 + 3]);
 			}
 			sti[i] = stiffnesses[i];
+			thr[i] = plasticThresholds[i]; //dw
+			creeps[i] = plasticCreeps[i]; //dw
 			//for some weird reason rotations always returns zeros unless w is initialized with some tvalue from the beginning. if x, y, or z are initialized as non-zero values, intitial rotation is applied which is wrong.
 			if (rotations[i * 4] == 0.0f && rotations[i * 4 + 1] == 0.0f && rotations[i * 4 + 2] == 0.0f && rotations[i * 4 + 3] == 0.0f)
 				rot[i] = float4(rotations[i * 4], rotations[i * 4 + 1], rotations[i * 4 + 2], rotations[i * 4 + 3] + 1);
@@ -738,19 +781,25 @@ namespace FlexCLI {
 		NvFlexUnmap(Buffers.RigidStiffnesses);
 		NvFlexUnmap(Buffers.RigidRotations);
 		NvFlexUnmap(Buffers.RigidTranslations);
+		NvFlexUnmap(Buffers.PlasticThresholds);  //dw
+		NvFlexUnmap(Buffers.PlasticCreeps);  //dw
 
 		//actual Nv function
-		NvFlexSetRigids(Solver, Buffers.RigidOffets, Buffers.RigidIndices, Buffers.RigidRestPositions, Buffers.RigidRestNormals, Buffers.RigidStiffnesses, Buffers.RigidRotations, Buffers.RigidTranslations, numRigids, indices->Count);
+		NvFlexSetRigids(Solver, Buffers.RigidOffets, Buffers.RigidIndices, Buffers.RigidRestPositions, Buffers.RigidRestNormals, Buffers.RigidStiffnesses, Buffers.PlasticThresholds, Buffers.PlasticCreeps, Buffers.RigidRotations, Buffers.RigidTranslations, numRigids, indices->Count);
 	}
 
-	void Flex::GetRigidTransformations(List<float>^ %translations, List<float>^ %rotations) {
+	void Flex::GetRigids(List<float>^ %translations, List<float>^ %rotations, List<float>^ %restPositions, List<float>^ %restNormals) {
 		translations = gcnew List<float>();
 		rotations = gcnew List<float>();
+		restPositions = gcnew List<float>(); //dw
+		restNormals = gcnew List<float>(); //dw
 
-		NvFlexGetRigidTransforms(Solver, Buffers.RigidRotations, Buffers.RigidTranslations);
+		NvFlexGetRigids(Solver, NULL, NULL, Buffers.RigidRestPositions, Buffers.RigidRestNormals, NULL, NULL, NULL, Buffers.RigidRotations, Buffers.RigidTranslations); //dw: not clear if other buffers are needed to...
 
 		float4* rot = (float4*)NvFlexMap(Buffers.RigidRotations, eNvFlexMapWait);
 		float3* trans = (float3*)NvFlexMap(Buffers.RigidTranslations, eNvFlexMapWait);
+		float3* restP = (float3*)NvFlexMap(Buffers.RigidRestPositions, eNvFlexMapWait);
+		float4* restN = (float4*)NvFlexMap(Buffers.RigidRestNormals, eNvFlexMapWait);
 
 		for (int i = 0; i < Scene->NumRigids(); i++) {
 			rotations->Add(rot[i].x);
@@ -762,8 +811,20 @@ namespace FlexCLI {
 			translations->Add(trans[i].z);
 		}
 
+		for (int i = 0; i < Scene->RigidIndices->Count; i++) {
+			restPositions->Add(restP[i].x);
+			restPositions->Add(restP[i].y);
+			restPositions->Add(restP[i].z);
+			restNormals->Add(restN[i].x);
+			restNormals->Add(restN[i].y);
+			restNormals->Add(restN[i].z);
+			restNormals->Add(restN[i].w);
+		}
+
 		NvFlexUnmap(Buffers.RigidRotations);
 		NvFlexUnmap(Buffers.RigidTranslations);
+		NvFlexUnmap(Buffers.RigidRestPositions);
+		NvFlexUnmap(Buffers.RigidRestNormals);
 	}
 
 	void Flex::SetSprings(List<int>^ springPairIndices, List<float>^ springLengths, List<float>^ springCoefficients) {
@@ -843,13 +904,13 @@ namespace FlexCLI {
 		if (numFixedIter < 2) {
 			NvFlexUpdateSolver(Solver, dt, subSteps, false);
 			Scene->Particles = GetParticles();
-			GetRigidTransformations(Scene->RigidTranslations, Scene->RigidRotations);
+			GetRigids(Scene->RigidTranslations, Scene->RigidRotations, Scene->RigidRestPositions, Scene->RigidRestNormals);
 		}
 		else {
 			for (int i = 0; i < numFixedIter; i++) {
 				NvFlexUpdateSolver(Solver, dt, subSteps, false);
 				Scene->Particles = GetParticles();
-				GetRigidTransformations(Scene->RigidTranslations, Scene->RigidRotations);
+				GetRigids(Scene->RigidTranslations, Scene->RigidRotations, Scene->RigidRestPositions, Scene->RigidRestNormals);
 			}
 		}
 	}

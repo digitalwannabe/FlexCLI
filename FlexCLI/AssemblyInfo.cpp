@@ -12,7 +12,7 @@ using namespace System::Security::Permissions;
 // associated with an assembly.
 //
 [assembly:AssemblyTitleAttribute(L"FlexCLI")];
-[assembly:AssemblyDescriptionAttribute(L"Bridge between NVidiaFlex 1.1.0 and .Net 4.5 in the form of a CLI/C++ wrapper with extensive setup functionality")];
+[assembly:AssemblyDescriptionAttribute(L"Bridge between NVidiaFlex 1.2.0 and .Net 4.5 in the form of a CLI/C++ wrapper with extensive setup functionality")];
 [assembly:AssemblyConfigurationAttribute(L"")];
 [assembly:AssemblyCompanyAttribute(L"Benjamin Felbrich")];
 [assembly:AssemblyProductAttribute(L"FlexCLI 0.9.9.1 pre release")];

@@ -19,6 +19,8 @@ namespace FlexCLI {
 		RigidStiffnesses = gcnew List<float>();
 		RigidRotations = gcnew List<float>();
 		RigidTranslations = gcnew List<float>();
+		PlasticThresholds = gcnew List<float>();
+		PlasticCreeps = gcnew List<float>();
 		NumActualRigids = 0;
 		SoftBodyOffsets = gcnew List<int>();
 		//springs
@@ -84,6 +86,8 @@ namespace FlexCLI {
 			shapeOffsets[i + 1] = asset->shapeOffsets[i];
 			RigidOffsets->Add(asset->shapeOffsets[i] + oldOffsetPosition);
 			RigidStiffnesses->Add(asset->shapeCoefficients[i]);
+			PlasticThresholds->Add(asset->shapePlasticThresholds[i]);
+			PlasticCreeps->Add(asset->shapePlasticCreeps[i]);
 			RigidTranslations->Add(0.0f);
 			RigidTranslations->Add(0.0f);
 			RigidTranslations->Add(0.0f);
@@ -162,12 +166,12 @@ namespace FlexCLI {
 	///<param name = 'inverseMass'>Supply inverse mass per particle. Alternatively supply array of length one, value will be assigned to every vertex particle.</param>
 	///<param name = 'stiffness'>Stiffness between 0.0 and 1.0</param>
 	///<param name = 'groupIndex'>A uniquely used index between 0 and 2^24. All particles in this object will be identified by the group index in the future.</param>
-	void FlexScene::RegisterRigidBody(array<float>^ vertices, array<float>^ vertexNormals, array<float>^ velocity, array<float>^ inverseMasses, float stiffness, int groupIndex) {
+	void FlexScene::RegisterRigidBody(array<float>^ vertices, array<float>^ vertexNormals, array<float>^ velocity, array<float>^ inverseMasses, float stiffness, float plasticThreshold, float plasticCreep, int groupIndex) {
 #pragma region check everything
 		for each (FlexParticle^ p in Particles)
 			if (p->GroupIndex == groupIndex)
 				throw gcnew Exception("Rigid Body: Group index " + groupIndex + " already in use!");
-		if (vertices->Length % 3 != 0 || vertexNormals->Length % 3 != 0 || velocity->Length != 3 || stiffness < 0.0f || stiffness > 1.0f)
+		if (vertices->Length % 3 != 0 || vertexNormals->Length % 3 != 0 || velocity->Length != 3 || stiffness < 0.0f || stiffness > 1.0f || plasticCreep < 0.0f || plasticCreep > 1.0f)
 			throw gcnew Exception("FlexScene::RegisterRigidBody(...) Invalid input!");
 
 		if (inverseMasses->Length == 1)
@@ -220,6 +224,9 @@ namespace FlexCLI {
 
 		RigidStiffnesses->Add(stiffness);
 
+		PlasticThresholds->Add(plasticThreshold);
+		PlasticCreeps->Add(plasticCreep);
+
 		RigidRotations->Add(0.0f);
 		RigidRotations->Add(0.0f);
 		RigidRotations->Add(0.0f);
@@ -234,14 +241,14 @@ namespace FlexCLI {
 		TimeStamp = TimeStamp = System::DateTime::Now.Minute * 60000 + System::DateTime::Now.Second * 1000 + System::DateTime::Now.Millisecond;
 	}
 
-	void FlexScene::InitSoftBodyFromMesh(void*% asset, array<float>^ vertices, array<int>^ triangles, float particleSpacing, float volumeSampling, float surfaceSampling, float clusterSpacing, float clusterRadius, float clusterStiffness, float linkRadius, float linkStiffness, float globalStiffness) {
+	void FlexScene::InitSoftBodyFromMesh(void*% asset, array<float>^ vertices, array<int>^ triangles, float particleSpacing, float volumeSampling, float surfaceSampling, float clusterSpacing, float clusterRadius, float clusterStiffness, float linkRadius, float linkStiffness, float globalStiffness, float clusterPlasticThreshold, float	clusterPlasticCreep) {
 		std::vector<float> vt(vertices->Length);
 		for (int i = 0; i < vertices->Length; i++) vt[i] = vertices[i];
 
 		std::vector<int> tr(triangles->Length);
 		for (int i = 0; i < triangles->Length; i++) tr[i] = triangles[i];
 
-		asset = (void*)NvFlexExtCreateSoftFromMesh(&vt[0], vertices->Length / 3, &tr[0], triangles->Length, particleSpacing, volumeSampling, surfaceSampling, clusterSpacing, clusterRadius, clusterStiffness, linkRadius, linkStiffness, globalStiffness);
+		asset = (void*)NvFlexExtCreateSoftFromMesh(&vt[0], vertices->Length / 3, &tr[0], triangles->Length, particleSpacing, volumeSampling, surfaceSampling, clusterSpacing, clusterRadius, clusterStiffness, linkRadius, linkStiffness, globalStiffness, clusterPlasticThreshold, clusterPlasticCreep);
 		
 		//sometimes the last shape in the generated asset contains all particles. this bug is removed here
 		NvFlexExtAsset* a = (NvFlexExtAsset*)asset;
@@ -514,7 +521,7 @@ namespace FlexCLI {
 	}
 
 	///<returns>Return true, if registration was succesful. Returns false, if constraint indices exceeded particle count.</returns>
-	bool FlexScene::RegisterCustomConstraints(array<int>^ anchorIndices, array<int>^ shapeMatchingIndices, float shapeStiffness, array<int>^ springPairIndices, array<float>^ springStiffnesses, array<float>^ springDefaultLengths, array<int>^ triangleIndices, array<float>^ triangleNormals) {
+	bool FlexScene::RegisterCustomConstraints(array<int>^ anchorIndices, array<int>^ shapeMatchingIndices, float shapeStiffness, float plasticThreshold, float plasticCreep, array<int>^ springPairIndices, array<float>^ springStiffnesses, array<float>^ springDefaultLengths, array<int>^ triangleIndices, array<float>^ triangleNormals) {
 #pragma region check everything
 		if (triangleIndices->Length % 3 != 0 || springPairIndices->Length % 2 != 0 || springPairIndices->Length / 2 != springStiffnesses->Length || springPairIndices->Length / 2 != springDefaultLengths->Length)
 			throw gcnew Exception("void FlexScene::RegisterCustomConstraints(...) ---> Invalid input!");
@@ -572,6 +579,8 @@ namespace FlexCLI {
 
 			RigidOffsets->Add(shapeMatchingIndices->Length + RigidOffsets[RigidOffsets->Count - 1]);
 			RigidStiffnesses->Add(shapeStiffness);
+			PlasticThresholds->Add(plasticThreshold);
+			PlasticCreeps->Add(plasticCreep);
 		}
 
 		if (springPairIndices->Length > 0) {
@@ -702,6 +711,8 @@ namespace FlexCLI {
 		this->RigidRestNormals->AddRange(newScene->RigidRestNormals);
 		this->RigidRestPositions->AddRange(newScene->RigidRestPositions);
 		this->RigidStiffnesses->AddRange(newScene->RigidStiffnesses);
+		this->PlasticThresholds->AddRange(newScene->PlasticThresholds); //dw
+		this->PlasticCreeps->AddRange(newScene->PlasticCreeps); //dw
 		this->NumActualRigids += newScene->NumActualRigids;
 		//TO DO!!!!
 		this->SoftBodyOffsets->AddRange(newScene->SoftBodyOffsets);
@@ -749,6 +760,8 @@ namespace FlexCLI {
 			}
 
 		this->RigidStiffnesses = alteredScene->RigidStiffnesses;
+		this->PlasticThresholds = alteredScene->PlasticThresholds; //dw
+		this->PlasticCreeps = alteredScene->PlasticCreeps; //dw
 
 		this->SpringIndices = alteredScene->SpringIndices;
 		this->SpringPairIndices = alteredScene->SpringPairIndices;

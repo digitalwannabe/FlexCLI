@@ -44,7 +44,7 @@ namespace FlexCLI {
 		void Destroy();
 	internal:
 		void SetParticles(List<FlexParticle^>^ flexParticles);
-		void SetRigids(List<int>^ offsets, List<int>^ indices, List<float>^ restPositions, List<float>^ restNormals, List<float>^ stiffnesses, List<float>^ rotations, List<float>^ translations);
+		void SetRigids(List<int>^ offsets, List<int>^ indices, List<float>^ restPositions, List<float>^ restNormals, List<float>^ stiffnesses, List<float>^ plasticThresholds, List<float>^ plasticCreeps, List<float>^ rotations, List<float>^ translations);
 		void SetSprings(List<int>^ springPairIndices, List<float>^ springLengths, List<float>^ springCoefficients);
 		void SetDynamicTriangles(List<int>^ triangleIndices, List<float>^ normals);
 		void SetInflatables(List<int>^ startIndices, List<int>^ numTriangles, List<float>^ restVolumes, List<float>^ overPressures, List<float>^ constraintScales);
@@ -54,7 +54,8 @@ namespace FlexCLI {
 		//called in each update cycle
 		List<FlexParticle^>^ GetParticles();
 		List<FlexForceField^>^ FlexForceFields;
-		void GetRigidTransformations(List<float>^ %translations, List<float>^ %rotations);
+		//dw: changed to GetRigids
+		void GetRigids(List<float>^ %translations, List<float>^ %rotations, List<float>^ %restPositions, List<float>^ %restNormals);
 	};
 
 	// Structs as they is presented to .Net
@@ -204,14 +205,16 @@ namespace FlexCLI {
 
 		//Rigids
 		int NumRigids() { return RigidOffsets->Count - 1; };
-		void RegisterRigidBody(array<float>^ vertices, array<float>^ vertexNormals, array<float>^ velocity, array<float>^ inverseMasses, float stiffness, int groupIndex);
+		void RegisterRigidBody(array<float>^ vertices, array<float>^ vertexNormals, array<float>^ velocity, array<float>^ inverseMasses, float stiffness, float plasticThreshold, float plasticCreep, int groupIndex);
 		List<FlexParticle^>^ GetRigidParticles();
 		List<float>^ GetRigidRotations() { return RigidRotations; };
 		List<float>^ GetRigidTranslations() { return RigidTranslations; };
+		List<float>^ GetRigidRestPositions() { return RigidRestPositions; }; //dw
+		List<float>^ GetRigidRestNormals() { return RigidRestNormals; }; //dw
 		List<float>^ GetShapeMassCenters() { return ShapeMassCenters; }
 
 		//Softs
-		static void InitSoftBodyFromMesh(void*% asset, array<float>^ vertices, array<int>^ triangles, float particleSpacing, float volumeSampling, float surfaceSampling, float clusterSpacing, float clusterRadius, float clusterStiffness, float linkRadius, float linkStiffness, float globalStiffness);
+		static void InitSoftBodyFromMesh(void*% asset, array<float>^ vertices, array<int>^ triangles, float particleSpacing, float volumeSampling, float surfaceSampling, float clusterSpacing, float clusterRadius, float clusterStiffness, float linkRadius, float linkStiffness, float globalStiffness, float clusterPlasticThreshold, float	clusterPlasticCreep);
 		static void UnwrapSoftBody(void* asset, array<float>^% particles, array<int>^% springIndices, array<array<int>^>^% shapeIndices);
 		static void DestroySoftBody(NvFlexExtAsset* asset);
 		List<List<FlexParticle^>^>^ GetSoftParticles();
@@ -233,7 +236,7 @@ namespace FlexCLI {
 		List<FlexParticle^>^ GetInflatableParticles();
 
 		//Custom Constraints
-		bool RegisterCustomConstraints(array<int>^ anchorIndices, array<int>^ shapeMatchingIndices, float shapeStiffness, array<int>^ springPairIndices, array<float>^ springStiffnesses, array<float>^ springDefaultLengths, array<int>^ triangleIndices, array<float>^ triangleNormals);
+		bool RegisterCustomConstraints(array<int>^ anchorIndices, array<int>^ shapeMatchingIndices, float shapeStiffness, float plasticThreshold, float plasticCreep, array<int>^ springPairIndices, array<float>^ springStiffnesses, array<float>^ springDefaultLengths, array<int>^ triangleIndices, array<float>^ triangleNormals);
 
 		//Exposes RegisterAsset to managed code, using unsigned long as asset pointer NvFlexExtAsset*
 		void RegisterAsset(unsigned long long asset, array<float>^ velocity, float invMass, int groupIndex, bool isSoftBody) { RegisterAsset((NvFlexExtAsset*)asset, velocity, invMass, groupIndex, isSoftBody); }
@@ -262,6 +265,8 @@ namespace FlexCLI {
 		List<float>^ RigidStiffnesses;
 		List<float>^ RigidRotations;
 		List<float>^ RigidTranslations;
+		List<float>^ PlasticThresholds; //dw
+		List<float>^ PlasticCreeps; //dw
 		List<int>^ SpringIndices;
 		List<int>^ SpringPairIndices;
 		List<float>^ SpringLengths;
