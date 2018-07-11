@@ -85,7 +85,7 @@
     <IncludePath>..\FlexCore120\include;$(IncludePath);$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
     <LibraryPath>..\FlexCore120\lib;$(LibraryPath)</LibraryPath>
     <SourcePath>$(SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -100,7 +100,7 @@
     <LibraryPath>..\FlexCore120\lib;$(LibraryPath)</LibraryPath>
     <ExecutablePath>..\FlexCore120\bin\win64;$(ExecutablePath)</ExecutablePath>
     <IgnoreImportLibrary>true</IgnoreImportLibrary>
-    <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
