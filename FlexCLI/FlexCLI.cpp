@@ -27,9 +27,9 @@ namespace FlexCLI {
 	int numFixedIter;
 
 	//added by dw:
-	NvFlexSolverDesc* solverDesc;
-	NvFlexInitDesc* initDesc;
-	NvFlexCopyDesc* copyDesc;
+	NvFlexSolverDesc solverDesc;
+	NvFlexInitDesc initDesc;
+	NvFlexCopyDesc copyDesc;
 	NvFlexFeatureMode featureMode = eNvFlexFeatureModeDefault;
 	int maxContactsPerParticle = 6;
 
@@ -495,12 +495,12 @@ namespace FlexCLI {
 
 		///Tells the host upon startup, how much memory it will need and reserves this memory
 		void Allocate() {
-			if (gpuUpload) {
-				Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferDevice);
-			}
-			else {
+			//if (gpuUpload) {
+			//	Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferDevice);
+			//}
+			//else {
 				Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
-			}
+			//}
 			
 			Velocities = NvFlexAllocBuffer(Library, maxParticles, sizeof(float3), eNvFlexBufferHost);
 			Phases = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
@@ -750,15 +750,15 @@ namespace FlexCLI {
 
 		FlexForceFields = gcnew List<FlexForceField^>();
 
-		NvFlexSetSolverDescDefaults(solverDesc); //probably not necessary -> check
+		NvFlexSetSolverDescDefaults(&solverDesc); //probably not necessary -> check
 
-		solverDesc->featureMode = featureMode;
-		solverDesc->maxParticles = maxParticles;
-		solverDesc->maxDiffuseParticles = maxDiffuseParticles;
-		solverDesc->maxNeighborsPerParticle = maxNeighborsPerParticle;
-		solverDesc->maxContactsPerParticle = maxContactsPerParticle;
+		solverDesc.featureMode = featureMode;
+		solverDesc.maxParticles = maxParticles;
+		solverDesc.maxDiffuseParticles = maxDiffuseParticles;
+		solverDesc.maxNeighborsPerParticle = maxNeighborsPerParticle;
+		solverDesc.maxContactsPerParticle = maxContactsPerParticle;
 
-		Solver = NvFlexCreateSolver(Library, solverDesc);
+		Solver = NvFlexCreateSolver(Library, &solverDesc);
 
 		if (ForceFieldCallback)
 			NvFlexExtDestroyForceFieldCallback(ForceFieldCallback);
@@ -786,17 +786,17 @@ namespace FlexCLI {
 
 
 
-		//todo: allocate device buffers to use as flex inpus...only works in flex1.2 ...use staging buffer, see createVertexBuffer
+		//todo: allocate device buffers to use as flex inputs...only works in flex1.2 ...use staging buffer
 		/*NvFlexBuffer* test = (NvFlexBuffer*)nativePointers->particles; ? maybe also via register*/
-		initDesc = new NvFlexInitDesc();
-		initDesc->deviceIndex = -1; //value from demo(?).....ignored if cuda context present
-		initDesc->enableExtensions = true; //Enable or disable NVIDIA/AMD extensions in DirectX, can lead to improved performance.
-		initDesc->computeType = eNvFlexD3D11; //let user choose cuda for cpu version...?		 
-		initDesc->renderContext = nativePointers->deviceContext;
-		initDesc->renderDevice = nativePointers->device;//Direct3D device to use for simulation, if none is specified a new device and context will be created. 
+
+		initDesc.deviceIndex = -1; //value from demo(?).....ignored if cuda context present
+		initDesc.enableExtensions = true; //Enable or disable NVIDIA/AMD extensions in DirectX, can lead to improved performance.
+		initDesc.computeType = eNvFlexD3D11; //let user choose cuda for cpu version...?		 
+		initDesc.renderContext = nativePointers->deviceContext;
+		initDesc.renderDevice = nativePointers->device;//Direct3D device to use for simulation, if none is specified a new device and context will be created. 
 
 
-		Library = NvFlexInit(NV_FLEX_VERSION, 0, initDesc);
+		Library = NvFlexInit(NV_FLEX_VERSION, 0, &initDesc);
 
 		HRESULT hr;
 		//create buffers to register them
@@ -869,15 +869,15 @@ namespace FlexCLI {
 
 		FlexForceFields = gcnew List<FlexForceField^>();
 
-		NvFlexSetSolverDescDefaults(solverDesc); //probably not necessary -> check
+		NvFlexSetSolverDescDefaults(&solverDesc); //probably not necessary -> check
 
-		solverDesc->featureMode = featureMode;
-		solverDesc->maxParticles = maxParticles;
-		solverDesc->maxDiffuseParticles = maxDiffuseParticles;
-		solverDesc->maxNeighborsPerParticle = maxNeighborsPerParticle;
-		solverDesc->maxContactsPerParticle = maxContactsPerParticle;
+		solverDesc.featureMode = featureMode;
+		solverDesc.maxParticles = maxParticles;
+		solverDesc.maxDiffuseParticles = maxDiffuseParticles;
+		solverDesc.maxNeighborsPerParticle = maxNeighborsPerParticle;
+		solverDesc.maxContactsPerParticle = maxContactsPerParticle;
 
-		Solver = NvFlexCreateSolver(Library, solverDesc);  //diffuse particles set to 0?
+		Solver = NvFlexCreateSolver(Library, &solverDesc);  //diffuse particles set to 0?
 
 		if (ForceFieldCallback)
 			NvFlexExtDestroyForceFieldCallback(ForceFieldCallback);
@@ -1237,24 +1237,24 @@ namespace FlexCLI {
 		NvFlexUnmap(simBuffers.Phases);
 		NvFlexUnmap(simBuffers.Active);
 
-		copyDesc->srcOffset = 0;
-		copyDesc->dstOffset = 0;
-		copyDesc->elementCount = n;
+		copyDesc.srcOffset = 0;
+		copyDesc.dstOffset = 0;
+		copyDesc.elementCount = n;
 
-		NvFlexSetParticles(Solver, simBuffers.Particles, copyDesc);
-		NvFlexSetVelocities(Solver, simBuffers.Velocities, copyDesc);
-		NvFlexSetPhases(Solver, simBuffers.Phases, copyDesc);
-		copyDesc->elementCount = nActive;
-		NvFlexSetActive(Solver, simBuffers.Active, copyDesc);
+		NvFlexSetParticles(Solver, simBuffers.Particles, &copyDesc);
+		NvFlexSetVelocities(Solver, simBuffers.Velocities, &copyDesc);
+		NvFlexSetPhases(Solver, simBuffers.Phases, &copyDesc);
+		copyDesc.elementCount = nActive;
+		NvFlexSetActive(Solver, simBuffers.Active, &copyDesc);
 	}
 
 	List<FlexParticle^>^ Flex::GetParticles() {
 
 		List<FlexParticle^>^ parts = gcnew List<FlexParticle^>;
-		copyDesc->elementCount = n;
-		NvFlexGetParticles(Solver, simBuffers.Particles, copyDesc);
-		NvFlexGetVelocities(Solver, simBuffers.Velocities, copyDesc);
-		NvFlexGetPhases(Solver, simBuffers.Phases, copyDesc);
+		copyDesc.elementCount = n;
+		NvFlexGetParticles(Solver, simBuffers.Particles, &copyDesc);
+		NvFlexGetVelocities(Solver, simBuffers.Velocities, &copyDesc);
+		NvFlexGetPhases(Solver, simBuffers.Phases, &copyDesc);
 
 		float4* particles = (float4*)NvFlexMap(simBuffers.Particles, eNvFlexMapWait);
 		float3* velocities = (float3*)NvFlexMap(simBuffers.Velocities, eNvFlexMapWait);
@@ -1559,8 +1559,8 @@ namespace FlexCLI {
 	}
 	void Flex::GetParticlesBuffer()
 	{
-		copyDesc->elementCount = n;
-		NvFlexGetParticles(Solver, renderBuffers.Particles, copyDesc);
+		copyDesc.elementCount = n;
+		NvFlexGetParticles(Solver, renderBuffers.Particles, &copyDesc);
 	}
 
 	IntPtr Flex::GetDX11Pointer(int index)

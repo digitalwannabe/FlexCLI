@@ -166,8 +166,7 @@
       <AdditionalLibraryDirectories>..\FlexCore120\lib\win64;%(AdditionalLibraryDirectories);$(CUDA_PATH)/lib/x64;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>echo D|xcopy "$(TargetPath)" "$(SolutionDir)VL.FlexCLI\dependencies\$(TargetFileName)" /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
