@@ -171,9 +171,18 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Reference Include="FeralTic">
+      <HintPath>..\..\vvvv.gameworks\tests - Copy\vvvv.Flex.Nodes\core\FeralTic.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="VVVV.DX11.Core">
+      <HintPath>..\..\vvvv.gameworks\tests - Copy\vvvv.Flex.Nodes\core\VVVV.DX11.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="VVVV.DX11.Lib">
+      <HintPath>..\..\vvvv.gameworks\tests - Copy\vvvv.Flex.Nodes\core\VVVV.DX11.Lib.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FlexCLI.h" />

@@ -31,9 +31,9 @@ namespace FlexCLI {
 		ParticleCollisionMargin = 0.5f;
 		ShapeCollisionMargin = 0.5f;
 		CollisionDistance = 0.075f;
-		PlasticThreshold = 0.0f;
-		PlasticCreep = 0.0f;
-		Fluid = true;
+		//PlasticThreshold = 0.0f;
+		//PlasticCreep = 0.0f;
+		//Fluid = true;
 		SleepThreshold = 0.0f;
 		ShockPropagation = 0.0f;
 		Restitution = 0.0f;
@@ -51,9 +51,9 @@ namespace FlexCLI {
 		DiffuseBuoyancy = 0.0f;
 		DiffuseDrag = 0.0f;
 		DiffuseBallistic = 1;
-		DiffuseSortAxisX = 0.0f;
-		DiffuseSortAxisY = 0.0f;
-		DiffuseSortAxisZ = 0.0f;
+		//DiffuseSortAxisX = 0.0f;
+		//DiffuseSortAxisY = 0.0f;
+		//DiffuseSortAxisZ = 0.0f;
 		DiffuseLifetime = 0.0f;
 		NumPlanes = 0;
 #pragma endregion

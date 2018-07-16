@@ -1,20 +1,33 @@
 // FlexCLI.h
 #pragma once
 
+////dw: fix for slimdx compatibility, preventing std::errc namespace already defined error
+//#define errc Errc
+//#define io_errc Io_errc
+
 #include "NvFlex.h"
 #include "NvFlexExt.h"
 #include <vector>
 #include <map>
 #include <iostream>
 #include <stdio.h>
+
+
+//added by digitalwannabe
+#pragma comment(lib, "d3d11.lib")
+#include <d3d11.h>
 #include <DirectXMath.h>
+using namespace DirectX;
+using namespace FeralTic::DX11::Resources;
+
+
 
 using namespace System;
 using namespace System::Collections::Generic;
 using namespace System::Runtime::InteropServices;
 
-typedef DirectX::XMFLOAT3 float3;
-typedef DirectX::XMFLOAT4 float4;
+typedef XMFLOAT3 float3;
+typedef XMFLOAT4 float4;
 
 namespace FlexCLI {
 
@@ -28,11 +41,52 @@ namespace FlexCLI {
 	ref class FlexUtils;
 	ref class FlexForceField;
 
-	public ref class Flex
+
+	//dw
+	typedef DirectX::XMFLOAT3 float3;
+	typedef DirectX::XMFLOAT4 float4;
+
+	struct nativeBufferStructInt {
+
+		int value;
+	};
+
+	struct nativeBufferStructFloat3 {
+
+		float3 value;
+	};
+
+	struct nativeBufferStructFloat4 {
+
+		float4 value;
+	};
+
+	class DX11NativePointer
+	{
+	public:
+
+		DX11NativePointer();
+
+		/// \brief destructor
+		~DX11NativePointer();
+
+		ID3D11Device* device;
+		ID3D11DeviceContext* deviceContext;
+		ID3D11Buffer* particles;
+		ID3D11ShaderResourceView*	pSRV;
+		ID3D11UnorderedAccessView*	pUAV;
+
+	};
+	
+	
+	//dw
+
+	public ref class Flex : IDX11Resource  //note: this interface provides support for vvvv render pipeline (only requires to implement IDisposable)
 	{
 		// public: Everything accessible from FlexHopper
 	public:
-		Flex();
+		
+		Flex();		
 		FlexScene^ Scene;
 		void SetCollisionGeometry(FlexCollisionGeometry^ flexCollisionGeometry);
 		void SetParams(FlexParams^ flexParams);
@@ -42,6 +96,14 @@ namespace FlexCLI {
 		bool IsReady();
 		void UpdateSolver();
 		void Destroy();
+
+		//dw
+		//alternative constructor, which accepts a dx11 context, creates a buffer on the context and registers the buffer with flex
+		Flex(IntPtr dx11Device, IntPtr dx11DeviceContext); 
+		void GetParticlesBuffer();
+		IntPtr GetDX11Pointer(int index);
+		DX11NativePointer* nativePointers;
+		~Flex();
 	internal:
 		void SetParticles(List<FlexParticle^>^ flexParticles);
 		void SetRigids(List<int>^ offsets, List<int>^ indices, List<float>^ restPositions, List<float>^ restNormals, List<float>^ stiffnesses, List<float>^ plasticThresholds, List<float>^ plasticCreeps, List<float>^ rotations, List<float>^ translations);
@@ -56,6 +118,9 @@ namespace FlexCLI {
 		List<FlexForceField^>^ FlexForceFields;
 		//dw: changed to GetRigids
 		void GetRigids(List<float>^ %translations, List<float>^ %rotations, List<float>^ %restPositions, List<float>^ %restNormals);
+
+		//dw: buffer versions
+		/*void SetParticlesBuffer(List<FlexParticle^>^ flexParticles);*/
 	};
 
 	// Structs as they is presented to .Net
@@ -94,7 +159,7 @@ namespace FlexCLI {
 		float Lift;							//!< Lift force applied to particles belonging to dynamic triangles, proportional to velocity^2*area in the direction perpendicular to velocity and (if possible), parallel to the plane normal
 
 											// fluid params
-		bool Fluid;							//!< If true then particles with phase 0 are considered fluid particles and interact using the position based fluids method
+/*		bool Fluid;		*/					//!< If true then particles with phase 0 are considered fluid particles and interact using the position based fluids method
 		float Cohesion;						//!< Control how strongly particles hold each other together, default: 0.025, range [0.0, +inf]
 		float SurfaceTension;				//!< Controls how strongly particles attempt to minimize surface area, default: 0.0, range: [0.0, +inf]    
 		float Viscosity;					//!< Smoothes particle velocities using XSPH viscosity
@@ -112,14 +177,14 @@ namespace FlexCLI {
 		float DiffuseBuoyancy;				//!< Scales force opposing gravity that diffuse particles receive
 		float DiffuseDrag;					//!< Scales force diffuse particles receive in direction of neighbor fluid particles
 		int DiffuseBallistic;				//!< The number of neighbors below which a diffuse particle is considered ballistic
-		float DiffuseSortAxisX;				//!< Diffuse particles will be sorted by depth along this axis if non-zero
-		float DiffuseSortAxisY;
-		float DiffuseSortAxisZ;
+		//float DiffuseSortAxisX;				//!< Diffuse particles will be sorted by depth along this axis if non-zero
+		//float DiffuseSortAxisY;
+		//float DiffuseSortAxisZ;
 		float DiffuseLifetime;				//!< Time in seconds that a diffuse particle will live for after being spawned, particles will be spawned with a random lifetime in the range [0, diffuseLifetime]
 
 											// rigid params
-		float PlasticThreshold;				//!< Particles belonging to rigid shapes that move with a position delta magnitude > threshold will be permanently deformed in the rest pose
-		float PlasticCreep;					//!< Controls the rate at which particles in the rest pose are deformed for particles passing the deformation threshold 
+		//float PlasticThreshold;				//!< Particles belonging to rigid shapes that move with a position delta magnitude > threshold will be permanently deformed in the rest pose
+		//float PlasticCreep;					//!< Controls the rate at which particles in the rest pose are deformed for particles passing the deformation threshold 
 
 											// collision params
 		float CollisionDistance;			//!< Distance particles maintain against shapes, note that for robust collision against triangle meshes this distance should be greater than zero
@@ -299,7 +364,28 @@ namespace FlexCLI {
 		bool IsActive = true;
 		bool IsValid();
 		String^ ToString() override;
+		
+		//dw
+		ID3D11Buffer* Position;
+		ID3D11Buffer* Velocity;
 	};
+
+	//dw
+	//public ref class FlexBufferedParticle {
+	//public:
+	//	FlexBufferedParticle(array<float>^ position, array<float>^ velocity, float inverseMass, bool selfCollision, bool isFluid, int groupIndex, bool isActive);
+	//	FlexBufferedParticle(array<float>^ position, array<float>^ velocity, float inverseMass, int phase, bool isActive);
+	//	/*float PositionX, PositionY, PositionZ, InverseMass, VelocityX, VelocityY, VelocityZ;*/
+	//	ID3D10Buffer* Position; //+ invMass in w component
+	//	ID3D11Buffer* Velocity;
+	//	int GroupIndex;
+	//	bool SelfCollision;
+	//	bool IsFluid; //per group
+	//	int Phase;
+	//	bool IsActive = true;
+	//	bool IsValid();
+	//	String^ ToString() override;
+	//};
 
 	public ref struct FlexSolverOptions {
 	public:
@@ -327,4 +413,85 @@ namespace FlexCLI {
 
 		String^ ToString() override;
 	};
+
+	//////////////////////
+	//dw
+	//helper function to create a structured buffer
+	//helper function to create a structured buffer
+	template <class T>
+	HRESULT CreateStructuredBuffer(
+		ID3D11Device*               pd3dDevice,
+		const UINT                  iNumElements,
+		const bool                  isCpuWritable,
+		const bool                  isGpuWritable,
+		ID3D11Buffer**              ppBuffer,
+		ID3D11ShaderResourceView**  ppSRV,
+		ID3D11UnorderedAccessView** ppUAV,
+		const T*                    pInitialData = NULL)
+	{
+		HRESULT hr = S_OK;
+
+		assert(pd3dDevice != NULL);
+		assert(ppBuffer != NULL);
+		assert(ppSRV != NULL);
+
+		D3D11_BUFFER_DESC bufferDesc;
+		ZeroMemory(&bufferDesc, sizeof(bufferDesc));
+		bufferDesc.ByteWidth = iNumElements * sizeof(T);
+
+		if ((!isCpuWritable) && (!isGpuWritable))
+		{
+			bufferDesc.CPUAccessFlags = 0;
+			bufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			bufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+		}
+		else if (isCpuWritable && (!isGpuWritable))
+		{
+			bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+			bufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+		}
+		else if ((!isCpuWritable) && isGpuWritable)
+		{
+			bufferDesc.CPUAccessFlags = 0;
+			bufferDesc.BindFlags = (D3D11_BIND_SHADER_RESOURCE |
+				D3D11_BIND_UNORDERED_ACCESS);
+			bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		}
+		else
+		{
+			assert((!(isCpuWritable && isGpuWritable)));
+		}
+
+		bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+		bufferDesc.StructureByteStride = sizeof(T);
+
+		D3D11_SUBRESOURCE_DATA bufferInitData;
+		ZeroMemory((&bufferInitData), sizeof(bufferInitData));
+		bufferInitData.pSysMem = pInitialData;
+		hr = pd3dDevice->CreateBuffer((&bufferDesc),
+			(pInitialData) ? (&bufferInitData) : NULL,
+			ppBuffer);
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+		ZeroMemory(&srvDesc, sizeof(srvDesc));
+		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+		srvDesc.Buffer.ElementWidth = iNumElements;
+		hr = pd3dDevice->CreateShaderResourceView(*ppBuffer, &srvDesc, ppSRV);
+
+		if (isGpuWritable)
+		{
+			assert(ppUAV != NULL);
+
+			D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc;
+			ZeroMemory((&uavDesc), sizeof(uavDesc));
+			uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+			uavDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+			uavDesc.Buffer.NumElements = iNumElements;
+			hr = pd3dDevice->CreateUnorderedAccessView(*ppBuffer, &uavDesc, ppUAV);
+		}
+
+		return hr;
+	}
 }

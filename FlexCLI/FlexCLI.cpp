@@ -28,12 +28,431 @@ namespace FlexCLI {
 
 	//added by dw:
 	NvFlexSolverDesc* solverDesc;
+	NvFlexInitDesc* initDesc;
 	NvFlexCopyDesc* copyDesc;
 	NvFlexFeatureMode featureMode = eNvFlexFeatureModeDefault;
 	int maxContactsPerParticle = 6;
 
+	bool gpuUpload = true;
 
-	struct SimBuffers {
+
+	struct RenderBuffers {
+		NvFlexBuffer* Particles;
+		NvFlexBuffer* Velocities;
+		NvFlexBuffer* Phases;
+		NvFlexBuffer* Active;
+		NvFlexBuffer* CollisionGeometry;
+		NvFlexBuffer* Position;
+		NvFlexBuffer* PrevPosition;
+		NvFlexBuffer* Rotation;
+		NvFlexBuffer* PrevRotation;
+		NvFlexBuffer* Flags;
+		//Buffers for collision geometry
+		NvFlexBuffer* CollisionMeshVertices;
+		NvFlexBuffer* CollisionMeshIndices;
+		NvFlexBuffer* CollisionConvexMeshPlanes;
+		//Buffers for Rigid Bodies
+		NvFlexBuffer* RigidOffets;
+		NvFlexBuffer* RigidIndices;
+		NvFlexBuffer* RigidRestPositions;
+		NvFlexBuffer* RigidRestNormals;
+		NvFlexBuffer* RigidStiffnesses;
+		NvFlexBuffer* RigidRotations;
+		NvFlexBuffer* RigidTranslations;
+		//Buffers for Springs
+		NvFlexBuffer* SpringPairIndices;
+		NvFlexBuffer* SpringLengths;
+		NvFlexBuffer* SpringCoefficients;
+		//Buffers for dynamic triangles
+		NvFlexBuffer* DynamicTriangleIndices;
+		NvFlexBuffer* DynamicTriangleNormals;
+		//Buffers for inflatables
+		NvFlexBuffer* InflatableStartIndices;
+		NvFlexBuffer* InflatableNumTriangles;
+		NvFlexBuffer* InflatableRestVolumes;
+		NvFlexBuffer* InflatableOverPressures;
+		NvFlexBuffer* InflatableConstraintScales;
+
+		/////Tells the host upon startup, how much memory it will need and reserves this memory
+		//void Allocate() {
+		//	Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
+		//	Velocities = NvFlexAllocBuffer(Library, maxParticles, sizeof(float3), eNvFlexBufferHost);
+		//	Phases = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
+		//	Active = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
+		//	CollisionGeometry = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	Position = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	PrevPosition = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	Rotation = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	PrevRotation = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	Flags = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(int), eNvFlexBufferHost);
+		//	CollisionMeshVertices = NvFlexAllocBuffer(Library, maxCollisionMeshVertexCount, sizeof(float3), eNvFlexBufferHost);
+		//	CollisionMeshIndices = NvFlexAllocBuffer(Library, maxCollisionMeshIndexCount, sizeof(int) * 3, eNvFlexBufferHost);
+		//	CollisionConvexMeshPlanes = NvFlexAllocBuffer(Library, maxCollisionConvexShapePlanes, sizeof(float4), eNvFlexBufferHost);
+		//	RigidOffets = NvFlexAllocBuffer(Library, maxRigidBodies + 1, sizeof(int), eNvFlexBufferHost);
+		//	RigidIndices = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(int), eNvFlexBufferHost);
+		//	RigidRestPositions = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float3), eNvFlexBufferHost);
+		//	RigidRestNormals = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float4), eNvFlexBufferHost);
+		//	RigidStiffnesses = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost);
+		//	RigidRotations = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float4), eNvFlexBufferHost);
+		//	RigidTranslations = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float3), eNvFlexBufferHost);
+		//	SpringPairIndices = NvFlexAllocBuffer(Library, maxSprings * 2, sizeof(int), eNvFlexBufferHost);
+		//	SpringLengths = NvFlexAllocBuffer(Library, maxSprings, sizeof(float), eNvFlexBufferHost);
+		//	SpringCoefficients = NvFlexAllocBuffer(Library, maxSprings, sizeof(float), eNvFlexBufferHost);
+		//	DynamicTriangleIndices = NvFlexAllocBuffer(Library, maxDynamicTriangles * 3, sizeof(int), eNvFlexBufferHost);
+		//	DynamicTriangleNormals = NvFlexAllocBuffer(Library, maxDynamicTriangles, sizeof(float3), eNvFlexBufferHost);
+		//	InflatableStartIndices = NvFlexAllocBuffer(Library, maxDynamicTriangles, sizeof(int), eNvFlexBufferHost);
+		//	InflatableNumTriangles = NvFlexAllocBuffer(Library, maxDynamicTriangles, sizeof(int), eNvFlexBufferHost);
+		//	InflatableRestVolumes = NvFlexAllocBuffer(Library, maxDynamicTriangles / 4, sizeof(float), eNvFlexBufferHost);
+		//	InflatableOverPressures = NvFlexAllocBuffer(Library, maxDynamicTriangles / 4, sizeof(float), eNvFlexBufferHost);
+		//	InflatableConstraintScales = NvFlexAllocBuffer(Library, maxDynamicTriangles / 4, sizeof(float), eNvFlexBufferHost);
+		//}
+
+		///<summary>
+		///Performs the following steps for every buffer: Check if pointer is 0; if it is, do nothing. If it is not, free buffer (NvFlex function) and set pointer to 0.
+		///</summary>
+		void Destroy() {
+			if (Particles) {
+				NvFlexFreeBuffer(Particles);
+				Particles = NULL;
+			}
+			if (Velocities) {
+				NvFlexFreeBuffer(Velocities);
+				Velocities = NULL;
+			}
+			if (Phases) {
+				NvFlexFreeBuffer(Phases);
+				Phases = NULL;
+			}
+			if (Active) {
+				NvFlexFreeBuffer(Active);
+				Active = NULL;
+			}
+			if (CollisionGeometry) {
+				NvFlexFreeBuffer(CollisionGeometry);
+				CollisionGeometry = NULL;
+			}
+			if (Position) {
+				NvFlexFreeBuffer(Position);
+				Position = NULL;
+			}
+			if (PrevPosition) {
+				NvFlexFreeBuffer(PrevPosition);
+				PrevPosition = NULL;
+			}
+			if (Rotation) {
+				NvFlexFreeBuffer(Rotation);
+				Rotation = NULL;
+			}
+			if (PrevRotation) {
+				NvFlexFreeBuffer(PrevRotation);
+				PrevRotation = NULL;
+			}
+			if (Flags) {
+				NvFlexFreeBuffer(Flags);
+				Flags = NULL;
+			}
+			if (CollisionMeshVertices) {
+				NvFlexFreeBuffer(CollisionMeshVertices);
+				CollisionMeshVertices = NULL;
+			}
+			if (CollisionMeshIndices) {
+				NvFlexFreeBuffer(CollisionMeshIndices);
+				CollisionMeshIndices = NULL;
+			}
+			if (CollisionConvexMeshPlanes) {
+				NvFlexFreeBuffer(CollisionConvexMeshPlanes);
+				CollisionConvexMeshPlanes = NULL;
+			}
+			if (RigidOffets) {
+				NvFlexFreeBuffer(RigidOffets);
+				RigidOffets = NULL;
+			}
+			if (RigidIndices) {
+				NvFlexFreeBuffer(RigidIndices);
+				RigidIndices = NULL;
+			}
+			if (RigidRestPositions) {
+				NvFlexFreeBuffer(RigidRestPositions);
+				RigidRestPositions = NULL;
+			}
+			if (RigidRestNormals) {
+				NvFlexFreeBuffer(RigidRestNormals);
+				RigidRestNormals = NULL;
+			}
+			if (RigidStiffnesses) {
+				NvFlexFreeBuffer(RigidStiffnesses);
+				RigidStiffnesses = NULL;
+			}
+			if (RigidRotations) {
+				NvFlexFreeBuffer(RigidRotations);
+				RigidRotations = NULL;
+			}
+			if (RigidTranslations) {
+				NvFlexFreeBuffer(RigidTranslations);
+				RigidTranslations = NULL;
+			}
+			if (SpringPairIndices) {
+				NvFlexFreeBuffer(SpringPairIndices);
+				SpringPairIndices = NULL;
+			}
+			if (SpringLengths) {
+				NvFlexFreeBuffer(SpringLengths);
+				SpringLengths = NULL;
+			}
+			if (SpringCoefficients) {
+				NvFlexFreeBuffer(SpringCoefficients);
+				SpringCoefficients = NULL;
+			}
+			if (DynamicTriangleIndices) {
+				NvFlexFreeBuffer(DynamicTriangleIndices);
+				DynamicTriangleIndices = NULL;
+			}
+			if (DynamicTriangleNormals) {
+				NvFlexFreeBuffer(DynamicTriangleNormals);
+				DynamicTriangleNormals = NULL;
+			}
+			if (InflatableStartIndices) {
+				NvFlexFreeBuffer(InflatableStartIndices);
+				InflatableStartIndices = NULL;
+			}
+			if (InflatableNumTriangles) {
+				NvFlexFreeBuffer(InflatableNumTriangles);
+				InflatableNumTriangles = NULL;
+			}
+			if (InflatableRestVolumes) {
+				NvFlexFreeBuffer(InflatableRestVolumes);
+				InflatableRestVolumes = NULL;
+			}
+			if (InflatableOverPressures) {
+				NvFlexFreeBuffer(InflatableOverPressures);
+				InflatableOverPressures = NULL;
+			}
+			if (InflatableConstraintScales) {
+				NvFlexFreeBuffer(InflatableConstraintScales);
+				InflatableConstraintScales = NULL;
+			}
+		}
+	};
+
+	RenderBuffers renderBuffers;
+
+	struct SimDeviceBuffers { //uploaded via gpu
+		NvFlexBuffer* Particles;
+		//NvFlexBuffer* Velocities;
+		//NvFlexBuffer* Phases;
+		//NvFlexBuffer* Active;
+		//NvFlexBuffer* CollisionGeometry;
+		//NvFlexBuffer* Position;
+		//NvFlexBuffer* PrevPosition;
+		//NvFlexBuffer* Rotation;
+		//NvFlexBuffer* PrevRotation;
+		//NvFlexBuffer* Flags;
+		////Buffers for collision geometry
+		//NvFlexBuffer* CollisionMeshVertices;
+		//NvFlexBuffer* CollisionMeshIndices;
+		//NvFlexBuffer* CollisionConvexMeshPlanes;
+		////Buffers for Rigid Bodies
+		//NvFlexBuffer* RigidOffets;
+		//NvFlexBuffer* RigidIndices;
+		//NvFlexBuffer* RigidRestPositions;
+		//NvFlexBuffer* RigidRestNormals;
+		//NvFlexBuffer* RigidStiffnesses;
+		//NvFlexBuffer* RigidRotations;
+		//NvFlexBuffer* RigidTranslations;
+		////dw
+		//NvFlexBuffer* PlasticThresholds;
+		//NvFlexBuffer* PlasticCreeps;
+		////
+		////Buffers for Springs
+		//NvFlexBuffer* SpringPairIndices;
+		//NvFlexBuffer* SpringLengths;
+		//NvFlexBuffer* SpringCoefficients;
+		////Buffers for dynamic triangles
+		//NvFlexBuffer* DynamicTriangleIndices;
+		//NvFlexBuffer* DynamicTriangleNormals;
+		////Buffers for inflatables
+		//NvFlexBuffer* InflatableStartIndices;
+		//NvFlexBuffer* InflatableNumTriangles;
+		//NvFlexBuffer* InflatableRestVolumes;
+		//NvFlexBuffer* InflatableOverPressures;
+		//NvFlexBuffer* InflatableConstraintScales;
+
+		///Tells the host upon startup, how much memory it will need and reserves this memory
+		void Allocate() {
+			Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
+		//	Velocities = NvFlexAllocBuffer(Library, maxParticles, sizeof(float3), eNvFlexBufferHost);
+		//	Phases = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
+		//	Active = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
+		//	CollisionGeometry = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	Position = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	PrevPosition = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	Rotation = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	PrevRotation = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(float4), eNvFlexBufferHost);
+		//	Flags = NvFlexAllocBuffer(Library, maxCollisionShapeNumber, sizeof(int), eNvFlexBufferHost);
+		//	CollisionMeshVertices = NvFlexAllocBuffer(Library, maxCollisionMeshVertexCount, sizeof(float4), eNvFlexBufferHost); //dw: changed to float4
+		//	CollisionMeshIndices = NvFlexAllocBuffer(Library, maxCollisionMeshIndexCount, sizeof(int) * 3, eNvFlexBufferHost);
+		//	CollisionConvexMeshPlanes = NvFlexAllocBuffer(Library, maxCollisionConvexShapePlanes, sizeof(float4), eNvFlexBufferHost);
+		//	RigidOffets = NvFlexAllocBuffer(Library, maxRigidBodies + 1, sizeof(int), eNvFlexBufferHost);
+		//	RigidIndices = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(int), eNvFlexBufferHost);
+		//	RigidRestPositions = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float3), eNvFlexBufferHost);
+		//	RigidRestNormals = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float4), eNvFlexBufferHost);
+		//	RigidStiffnesses = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost);
+		//	RigidRotations = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float4), eNvFlexBufferHost);
+		//	RigidTranslations = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float3), eNvFlexBufferHost);
+		//	PlasticThresholds = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost); //dw
+		//	PlasticCreeps = NvFlexAllocBuffer(Library, maxRigidBodies, sizeof(float), eNvFlexBufferHost); //dw
+		//	SpringPairIndices = NvFlexAllocBuffer(Library, maxSprings * 2, sizeof(int), eNvFlexBufferHost);
+		//	SpringLengths = NvFlexAllocBuffer(Library, maxSprings, sizeof(float), eNvFlexBufferHost);
+		//	SpringCoefficients = NvFlexAllocBuffer(Library, maxSprings, sizeof(float), eNvFlexBufferHost);
+		//	DynamicTriangleIndices = NvFlexAllocBuffer(Library, maxDynamicTriangles * 3, sizeof(int), eNvFlexBufferHost);
+		//	DynamicTriangleNormals = NvFlexAllocBuffer(Library, maxDynamicTriangles, sizeof(float3), eNvFlexBufferHost);
+		//	InflatableStartIndices = NvFlexAllocBuffer(Library, maxDynamicTriangles, sizeof(int), eNvFlexBufferHost);
+		//	InflatableNumTriangles = NvFlexAllocBuffer(Library, maxDynamicTriangles, sizeof(int), eNvFlexBufferHost);
+		//	InflatableRestVolumes = NvFlexAllocBuffer(Library, maxDynamicTriangles / 4, sizeof(float), eNvFlexBufferHost);
+		//	InflatableOverPressures = NvFlexAllocBuffer(Library, maxDynamicTriangles / 4, sizeof(float), eNvFlexBufferHost);
+		//	InflatableConstraintScales = NvFlexAllocBuffer(Library, maxDynamicTriangles / 4, sizeof(float), eNvFlexBufferHost);
+		}
+
+		///<summary>
+		///Performs the following steps for every buffer: Check if pointer is 0; if it is, do nothing. If it is not, free buffer (NvFlex function) and set pointer to 0.
+		///</summary>
+		void Destroy() {
+			if (Particles) {
+				NvFlexFreeBuffer(Particles);
+				Particles = NULL;
+			}
+			//if (Velocities) {
+			//	NvFlexFreeBuffer(Velocities);
+			//	Velocities = NULL;
+			//}
+			//if (Phases) {
+			//	NvFlexFreeBuffer(Phases);
+			//	Phases = NULL;
+			//}
+			//if (Active) {
+			//	NvFlexFreeBuffer(Active);
+			//	Active = NULL;
+			//}
+			//if (CollisionGeometry) {
+			//	NvFlexFreeBuffer(CollisionGeometry);
+			//	CollisionGeometry = NULL;
+			//}
+			//if (Position) {
+			//	NvFlexFreeBuffer(Position);
+			//	Position = NULL;
+			//}
+			//if (PrevPosition) {
+			//	NvFlexFreeBuffer(PrevPosition);
+			//	PrevPosition = NULL;
+			//}
+			//if (Rotation) {
+			//	NvFlexFreeBuffer(Rotation);
+			//	Rotation = NULL;
+			//}
+			//if (PrevRotation) {
+			//	NvFlexFreeBuffer(PrevRotation);
+			//	PrevRotation = NULL;
+			//}
+			//if (Flags) {
+			//	NvFlexFreeBuffer(Flags);
+			//	Flags = NULL;
+			//}
+			//if (CollisionMeshVertices) {
+			//	NvFlexFreeBuffer(CollisionMeshVertices);
+			//	CollisionMeshVertices = NULL;
+			//}
+			//if (CollisionMeshIndices) {
+			//	NvFlexFreeBuffer(CollisionMeshIndices);
+			//	CollisionMeshIndices = NULL;
+			//}
+			//if (CollisionConvexMeshPlanes) {
+			//	NvFlexFreeBuffer(CollisionConvexMeshPlanes);
+			//	CollisionConvexMeshPlanes = NULL;
+			//}
+			//if (RigidOffets) {
+			//	NvFlexFreeBuffer(RigidOffets);
+			//	RigidOffets = NULL;
+			//}
+			//if (RigidIndices) {
+			//	NvFlexFreeBuffer(RigidIndices);
+			//	RigidIndices = NULL;
+			//}
+			//if (RigidRestPositions) {
+			//	NvFlexFreeBuffer(RigidRestPositions);
+			//	RigidRestPositions = NULL;
+			//}
+			//if (RigidRestNormals) {
+			//	NvFlexFreeBuffer(RigidRestNormals);
+			//	RigidRestNormals = NULL;
+			//}
+			//if (RigidStiffnesses) {
+			//	NvFlexFreeBuffer(RigidStiffnesses);
+			//	RigidStiffnesses = NULL;
+			//}
+			//if (RigidRotations) {
+			//	NvFlexFreeBuffer(RigidRotations);
+			//	RigidRotations = NULL;
+			//}
+			//if (RigidTranslations) {
+			//	NvFlexFreeBuffer(RigidTranslations);
+			//	RigidTranslations = NULL;
+			//}
+			////dw
+			//if (PlasticThresholds) {
+			//	NvFlexFreeBuffer(PlasticThresholds);
+			//	PlasticThresholds = NULL;
+			//}
+			//if (PlasticCreeps) {
+			//	NvFlexFreeBuffer(PlasticCreeps);
+			//	PlasticCreeps = NULL;
+			//}
+			////
+			//if (SpringPairIndices) {
+			//	NvFlexFreeBuffer(SpringPairIndices);
+			//	SpringPairIndices = NULL;
+			//}
+			//if (SpringLengths) {
+			//	NvFlexFreeBuffer(SpringLengths);
+			//	SpringLengths = NULL;
+			//}
+			//if (SpringCoefficients) {
+			//	NvFlexFreeBuffer(SpringCoefficients);
+			//	SpringCoefficients = NULL;
+			//}
+			//if (DynamicTriangleIndices) {
+			//	NvFlexFreeBuffer(DynamicTriangleIndices);
+			//	DynamicTriangleIndices = NULL;
+			//}
+			//if (DynamicTriangleNormals) {
+			//	NvFlexFreeBuffer(DynamicTriangleNormals);
+			//	DynamicTriangleNormals = NULL;
+			//}
+			//if (InflatableStartIndices) {
+			//	NvFlexFreeBuffer(InflatableStartIndices);
+			//	InflatableStartIndices = NULL;
+			//}
+			//if (InflatableNumTriangles) {
+			//	NvFlexFreeBuffer(InflatableNumTriangles);
+			//	InflatableNumTriangles = NULL;
+			//}
+			//if (InflatableRestVolumes) {
+			//	NvFlexFreeBuffer(InflatableRestVolumes);
+			//	InflatableRestVolumes = NULL;
+			//}
+			//if (InflatableOverPressures) {
+			//	NvFlexFreeBuffer(InflatableOverPressures);
+			//	InflatableOverPressures = NULL;
+			//}
+			//if (InflatableConstraintScales) {
+			//	NvFlexFreeBuffer(InflatableConstraintScales);
+			//	InflatableConstraintScales = NULL;
+			//}
+		}
+	};
+
+	SimDeviceBuffers simDeviceBuffers;
+	///
+	struct SimBuffers { //uploaded via cpu
 		NvFlexBuffer* Particles;
 		NvFlexBuffer* Velocities;
 		NvFlexBuffer* Phases;
@@ -76,7 +495,13 @@ namespace FlexCLI {
 
 		///Tells the host upon startup, how much memory it will need and reserves this memory
 		void Allocate() {
-			Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
+			if (gpuUpload) {
+				Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferDevice);
+			}
+			else {
+				Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
+			}
+			
 			Velocities = NvFlexAllocBuffer(Library, maxParticles, sizeof(float3), eNvFlexBufferHost);
 			Phases = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
 			Active = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
@@ -245,14 +670,16 @@ namespace FlexCLI {
 				InflatableConstraintScales = NULL;
 			}
 		}
-	};
+	}; 
 
-	SimBuffers Buffers;
+	SimBuffers simBuffers;
 
 	///<summary>Create a default Flex engine object. This will initialize a solver, create buffers and set up default NvFlexParams.</summary>
 	Flex::Flex() {
 		if (Solver)
 			Destroy();
+
+		nativePointers = nullptr; //set to null for cpu version
 
 		Library = NvFlexInit();
 
@@ -319,11 +746,11 @@ namespace FlexCLI {
 		Params.numPlanes = 0;
 #pragma endregion
 
-		Buffers.Allocate();
+		simBuffers.Allocate();
 
 		FlexForceFields = gcnew List<FlexForceField^>();
 
-		NvFlexSetSolverDescDefaults(solverDesc);
+		NvFlexSetSolverDescDefaults(solverDesc); //probably not necessary -> check
 
 		solverDesc->featureMode = featureMode;
 		solverDesc->maxParticles = maxParticles;
@@ -337,6 +764,126 @@ namespace FlexCLI {
 			NvFlexExtDestroyForceFieldCallback(ForceFieldCallback);
 
 		ForceFieldCallback = NvFlexExtCreateForceFieldCallback(Solver);
+	}
+
+	Flex::Flex(IntPtr dx11Device, IntPtr dx11DeviceContext)
+	{
+		//// use the PhysX GPU selected from the NVIDIA control panel	
+		//if (g_device == -1)
+		//	g_device = NvFlexDeviceGetSuggestedOrdinal();
+
+		//// Create an optimized CUDA context for Flex and set it on the 
+		//// calling thread. This is an optional call, it is fine to use 
+		//// a regular CUDA context, although creating one through this API
+		//// is recommended for best performance.
+		//bool success = NvFlexDeviceCreateCudaContext(g_device);
+
+
+		nativePointers = new DX11NativePointer();
+
+		nativePointers->deviceContext = (ID3D11DeviceContext*)(void*)dx11DeviceContext;
+		nativePointers->device = (ID3D11Device*)(void*)dx11Device;
+
+
+
+		//todo: allocate device buffers to use as flex inpus...only works in flex1.2 ...use staging buffer, see createVertexBuffer
+		/*NvFlexBuffer* test = (NvFlexBuffer*)nativePointers->particles; ? maybe also via register*/
+		initDesc = new NvFlexInitDesc();
+		initDesc->deviceIndex = -1; //value from demo(?).....ignored if cuda context present
+		initDesc->enableExtensions = true; //Enable or disable NVIDIA/AMD extensions in DirectX, can lead to improved performance.
+		initDesc->computeType = eNvFlexD3D11; //let user choose cuda for cpu version...?		 
+		initDesc->renderContext = nativePointers->deviceContext;
+		initDesc->renderDevice = nativePointers->device;//Direct3D device to use for simulation, if none is specified a new device and context will be created. 
+
+
+		Library = NvFlexInit(NV_FLEX_VERSION, 0, initDesc);
+
+		HRESULT hr;
+		//create buffers to register them
+
+		nativeBufferStructFloat4* m = new nativeBufferStructFloat4[maxParticles];
+
+		hr = CreateStructuredBuffer<nativeBufferStructFloat4>(nativePointers->device, maxParticles, false, true, &nativePointers->particles, &nativePointers->pSRV, &nativePointers->pUAV, m);
+
+		renderBuffers.Particles = NvFlexRegisterD3DBuffer(Library, nativePointers->particles, maxParticles, sizeof(nativeBufferStructFloat4));
+
+
+		//set default Params
+#pragma region Params
+		Params.gravity[0] = 0.0f;
+		Params.gravity[1] = 0.0f;
+		Params.gravity[2] = -9.81f;
+
+		Params.wind[0] = 0.0f;
+		Params.wind[1] = 0.0f;
+		Params.wind[2] = 0.0f;
+
+		Params.radius = 0.15f;
+		Params.viscosity = 0.0f;
+		Params.dynamicFriction = 0.0f;
+		Params.staticFriction = 0.0f;
+		Params.particleFriction = 0.0f; // scale friction between particles by default
+		Params.freeSurfaceDrag = 0.0f;
+		Params.drag = 0.0f;
+		Params.lift = 0.0f;
+		Params.numIterations = 3;
+		Params.fluidRestDistance = 0.0f;
+		Params.solidRestDistance = 0.0f;
+
+		Params.anisotropyScale = 1.0f;
+		Params.anisotropyMin = 0.1f;
+		Params.anisotropyMax = 2.0f;
+		Params.smoothing = 1.0f;
+
+		Params.dissipation = 0.0f;
+		Params.damping = 0.0f;
+		Params.particleCollisionMargin = 0.0f;
+		Params.shapeCollisionMargin = 0.0f;
+		Params.collisionDistance = 0.0f;
+		Params.sleepThreshold = 0.0f;
+		Params.shockPropagation = 0.0f;
+		Params.restitution = 0.0f;
+
+		Params.maxSpeed = FLT_MAX;
+		Params.maxAcceleration = 100.0f;	// approximately 10x gravity
+
+		Params.relaxationMode = eNvFlexRelaxationLocal;
+		Params.relaxationFactor = 1.0f;
+		Params.solidPressure = 1.0f;
+		Params.adhesion = 0.0f;
+		Params.cohesion = 0.025f;
+		Params.surfaceTension = 0.0f;
+		Params.vorticityConfinement = 0.0f;
+		Params.buoyancy = 1.0f;
+		Params.diffuseThreshold = 100.0f;
+		Params.diffuseBuoyancy = 1.0f;
+		Params.diffuseDrag = 0.8f;
+		Params.diffuseBallistic = 16;
+		Params.diffuseLifetime = 2.0f;
+
+		// planes created after particles
+		Params.numPlanes = 0;
+#pragma endregion
+
+		simBuffers.Allocate();
+
+		FlexForceFields = gcnew List<FlexForceField^>();
+
+		NvFlexSetSolverDescDefaults(solverDesc); //probably not necessary -> check
+
+		solverDesc->featureMode = featureMode;
+		solverDesc->maxParticles = maxParticles;
+		solverDesc->maxDiffuseParticles = maxDiffuseParticles;
+		solverDesc->maxNeighborsPerParticle = maxNeighborsPerParticle;
+		solverDesc->maxContactsPerParticle = maxContactsPerParticle;
+
+		Solver = NvFlexCreateSolver(Library, solverDesc);  //diffuse particles set to 0?
+
+		if (ForceFieldCallback)
+			NvFlexExtDestroyForceFieldCallback(ForceFieldCallback);
+
+		ForceFieldCallback = NvFlexExtCreateForceFieldCallback(Solver);
+
 	}
 
 	///<summary>Returns true if pointers to library and solver objects are valid</summary>
@@ -365,10 +912,10 @@ namespace FlexCLI {
 
 		//EVERYTHING ELSE
 		//prepare generic buffers, shape specific buffers are handled in the respective field 
-		NvFlexCollisionGeometry* geometry = (NvFlexCollisionGeometry*)NvFlexMap(Buffers.CollisionGeometry, 0);
-		float4* positions = (float4*)NvFlexMap(Buffers.Position, 0);
-		float4* rotations = (float4*)NvFlexMap(Buffers.Rotation, 0);
-		int* flags = (int*)NvFlexMap(Buffers.Flags, 0);
+		NvFlexCollisionGeometry* geometry = (NvFlexCollisionGeometry*)NvFlexMap(simBuffers.CollisionGeometry, 0);
+		float4* positions = (float4*)NvFlexMap(simBuffers.Position, 0);
+		float4* rotations = (float4*)NvFlexMap(simBuffers.Rotation, 0);
+		int* flags = (int*)NvFlexMap(simBuffers.Flags, 0);
 		int numShapes = 0;
 
 		// add sphere
@@ -409,8 +956,8 @@ namespace FlexCLI {
 
 
 			//assign vertex and face lists accordingly
-			float4* vertices = (float4*)NvFlexMap(Buffers.CollisionMeshVertices, 0); //dw: changed to float4
-			int* faces = (int*)NvFlexMap(Buffers.CollisionMeshIndices, 0);
+			float4* vertices = (float4*)NvFlexMap(simBuffers.CollisionMeshVertices, 0); //dw: changed to float4
+			int* faces = (int*)NvFlexMap(simBuffers.CollisionMeshIndices, 0);
 			array<float>^ v = flexCollisionGeometry->MeshVertices[i];
 			array<int>^ f = flexCollisionGeometry->MeshFaces[i];
 			for (int j = 0; j < v->Length / 3; j++)
@@ -427,11 +974,11 @@ namespace FlexCLI {
 				upper[j] = -u[j];
 				lower[j] = -l[j];
 			}
-			NvFlexUnmap(Buffers.CollisionMeshVertices);
-			NvFlexUnmap(Buffers.CollisionMeshIndices);
+			NvFlexUnmap(simBuffers.CollisionMeshVertices);
+			NvFlexUnmap(simBuffers.CollisionMeshIndices);
 
 			//set mesh
-			NvFlexUpdateTriangleMesh(Library, mesh, Buffers.CollisionMeshVertices, Buffers.CollisionMeshIndices, (int)(v->Length / 3), (int)(f->Length / 3), upper, lower);
+			NvFlexUpdateTriangleMesh(Library, mesh, simBuffers.CollisionMeshVertices, simBuffers.CollisionMeshIndices, (int)(v->Length / 3), (int)(f->Length / 3), upper, lower);
 
 			delete(upper);
 			upper = NULL;
@@ -456,7 +1003,7 @@ namespace FlexCLI {
 			NvFlexConvexMeshId mesh = NvFlexCreateConvexMesh(Library);
 
 			//assign planes accordingly
-			float4* planes = (float4*)NvFlexMap(Buffers.CollisionConvexMeshPlanes, 0);
+			float4* planes = (float4*)NvFlexMap(simBuffers.CollisionConvexMeshPlanes, 0);
 			array<float>^ p = flexCollisionGeometry->ConvexPlanes[i];
 			for (int j = 0; j < p->Length / 4; j++)
 				planes[j] = float4(p[j * 4], p[j * 4 + 1], p[j * 4 + 2], -p[j * 4 + 3]);
@@ -471,10 +1018,10 @@ namespace FlexCLI {
 				lower[j] = -l[j];
 			}
 
-			NvFlexUnmap(Buffers.CollisionConvexMeshPlanes);
+			NvFlexUnmap(simBuffers.CollisionConvexMeshPlanes);
 
 			//set convex mesh
-			NvFlexUpdateConvexMesh(Library, mesh, Buffers.CollisionConvexMeshPlanes, p->Length / 4, lower, upper);
+			NvFlexUpdateConvexMesh(Library, mesh, simBuffers.CollisionConvexMeshPlanes, p->Length / 4, lower, upper);
 
 			delete(upper);
 			upper = NULL;
@@ -494,19 +1041,19 @@ namespace FlexCLI {
 		//TO DO: add SDF
 
 		// unmap buffers
-		NvFlexUnmap(Buffers.CollisionGeometry);
-		NvFlexUnmap(Buffers.Position);
-		NvFlexUnmap(Buffers.Rotation);
-		NvFlexUnmap(Buffers.Flags);
+		NvFlexUnmap(simBuffers.CollisionGeometry);
+		NvFlexUnmap(simBuffers.Position);
+		NvFlexUnmap(simBuffers.Rotation);
+		NvFlexUnmap(simBuffers.Flags);
 
 		// send shapes to Flex
 		NvFlexSetShapes(Solver,
-			Buffers.CollisionGeometry,
-			Buffers.Position,
-			Buffers.Rotation,
+			simBuffers.CollisionGeometry,
+			simBuffers.Position,
+			simBuffers.Rotation,
 			NULL,
 			NULL,
-			Buffers.Flags, numShapes);
+			simBuffers.Flags, numShapes);
 	}
 
 	///<summary>Register simulation parameters using the FlexCLI.FlexParams class</summary>
@@ -665,10 +1212,10 @@ namespace FlexCLI {
 		if (!n) return;
 		int nActive = 0;
 
-		float4* particles = (float4*)NvFlexMap(Buffers.Particles, eNvFlexMapWait);
-		float3* velocities = (float3*)NvFlexMap(Buffers.Velocities, eNvFlexMapWait);
-		int* phases = (int*)NvFlexMap(Buffers.Phases, eNvFlexMapWait);
-		int* actives = (int*)NvFlexMap(Buffers.Active, eNvFlexMapWait);
+		float4* particles = (float4*)NvFlexMap(simBuffers.Particles, eNvFlexMapWait);
+		float3* velocities = (float3*)NvFlexMap(simBuffers.Velocities, eNvFlexMapWait);
+		int* phases = (int*)NvFlexMap(simBuffers.Phases, eNvFlexMapWait);
+		int* actives = (int*)NvFlexMap(simBuffers.Active, eNvFlexMapWait);
 
 		for (int i = 0; i < n; i++) {
 			if (flexParticles[i]->IsValid()) {
@@ -685,33 +1232,33 @@ namespace FlexCLI {
 				throw gcnew Exception("FlexCLI: void Flex::SetParticles(array<FlexParticle^>^ flexParticles ---> particle nr. " + i + " is invalid!\n" + flexParticles[i]->ToString());
 		}
 
-		NvFlexUnmap(Buffers.Particles);
-		NvFlexUnmap(Buffers.Velocities);
-		NvFlexUnmap(Buffers.Phases);
-		NvFlexUnmap(Buffers.Active);
+		NvFlexUnmap(simBuffers.Particles);
+		NvFlexUnmap(simBuffers.Velocities);
+		NvFlexUnmap(simBuffers.Phases);
+		NvFlexUnmap(simBuffers.Active);
 
 		copyDesc->srcOffset = 0;
 		copyDesc->dstOffset = 0;
 		copyDesc->elementCount = n;
 
-		NvFlexSetParticles(Solver, Buffers.Particles, copyDesc);
-		NvFlexSetVelocities(Solver, Buffers.Velocities, copyDesc);
-		NvFlexSetPhases(Solver, Buffers.Phases, copyDesc);
+		NvFlexSetParticles(Solver, simBuffers.Particles, copyDesc);
+		NvFlexSetVelocities(Solver, simBuffers.Velocities, copyDesc);
+		NvFlexSetPhases(Solver, simBuffers.Phases, copyDesc);
 		copyDesc->elementCount = nActive;
-		NvFlexSetActive(Solver, Buffers.Active, copyDesc);
+		NvFlexSetActive(Solver, simBuffers.Active, copyDesc);
 	}
 
 	List<FlexParticle^>^ Flex::GetParticles() {
 
 		List<FlexParticle^>^ parts = gcnew List<FlexParticle^>;
 		copyDesc->elementCount = n;
-		NvFlexGetParticles(Solver, Buffers.Particles, copyDesc);
-		NvFlexGetVelocities(Solver, Buffers.Velocities, copyDesc);
-		NvFlexGetPhases(Solver, Buffers.Phases, copyDesc);
+		NvFlexGetParticles(Solver, simBuffers.Particles, copyDesc);
+		NvFlexGetVelocities(Solver, simBuffers.Velocities, copyDesc);
+		NvFlexGetPhases(Solver, simBuffers.Phases, copyDesc);
 
-		float4* particles = (float4*)NvFlexMap(Buffers.Particles, eNvFlexMapWait);
-		float3* velocities = (float3*)NvFlexMap(Buffers.Velocities, eNvFlexMapWait);
-		int* phases = (int*)NvFlexMap(Buffers.Phases, eNvFlexMapWait);
+		float4* particles = (float4*)NvFlexMap(simBuffers.Particles, eNvFlexMapWait);
+		float3* velocities = (float3*)NvFlexMap(simBuffers.Velocities, eNvFlexMapWait);
+		int* phases = (int*)NvFlexMap(simBuffers.Phases, eNvFlexMapWait);
 
 		for (int i = 0; i < n; i++) {
 			array<float>^ pos = gcnew array<float>{particles[i].x, particles[i].y, particles[i].z};
@@ -725,9 +1272,9 @@ namespace FlexCLI {
 			parts->Add(gcnew FlexParticle(pos, vel, particles[i].w, phases[i], true));
 		}
 
-		NvFlexUnmap(Buffers.Particles);
-		NvFlexUnmap(Buffers.Velocities);
-		NvFlexUnmap(Buffers.Phases);
+		NvFlexUnmap(simBuffers.Particles);
+		NvFlexUnmap(simBuffers.Velocities);
+		NvFlexUnmap(simBuffers.Phases);
 
 		return parts;
 	}
@@ -741,15 +1288,15 @@ namespace FlexCLI {
 			return;
 
 		//create buffers	
-		int* off = (int*)NvFlexMap(Buffers.RigidOffets, eNvFlexMapWait);
-		int* ind = (int*)NvFlexMap(Buffers.RigidIndices, eNvFlexMapWait);
-		float3* restPos = (float3*)NvFlexMap(Buffers.RigidRestPositions, eNvFlexMapWait);
-		float4* restNor = (float4*)NvFlexMap(Buffers.RigidRestNormals, eNvFlexMapWait);
-		float* sti = (float*)NvFlexMap(Buffers.RigidStiffnesses, eNvFlexMapWait);
-		float4* rot = (float4*)NvFlexMap(Buffers.RigidRotations, eNvFlexMapWait);
-		float3* tra = (float3*)NvFlexMap(Buffers.RigidTranslations, eNvFlexMapWait);
-		float* thr = (float*)NvFlexMap(Buffers.PlasticThresholds, eNvFlexMapWait); //dw
-		float* creeps = (float*)NvFlexMap(Buffers.PlasticCreeps, eNvFlexMapWait); //dw
+		int* off = (int*)NvFlexMap(simBuffers.RigidOffets, eNvFlexMapWait);
+		int* ind = (int*)NvFlexMap(simBuffers.RigidIndices, eNvFlexMapWait);
+		float3* restPos = (float3*)NvFlexMap(simBuffers.RigidRestPositions, eNvFlexMapWait);
+		float4* restNor = (float4*)NvFlexMap(simBuffers.RigidRestNormals, eNvFlexMapWait);
+		float* sti = (float*)NvFlexMap(simBuffers.RigidStiffnesses, eNvFlexMapWait);
+		float4* rot = (float4*)NvFlexMap(simBuffers.RigidRotations, eNvFlexMapWait);
+		float3* tra = (float3*)NvFlexMap(simBuffers.RigidTranslations, eNvFlexMapWait);
+		float* thr = (float*)NvFlexMap(simBuffers.PlasticThresholds, eNvFlexMapWait); //dw
+		float* creeps = (float*)NvFlexMap(simBuffers.PlasticCreeps, eNvFlexMapWait); //dw
 
 		//assign everything
 		off[0] = 0;
@@ -774,18 +1321,18 @@ namespace FlexCLI {
 			ind[i] = indices[i];
 
 		//unmap buffers
-		NvFlexUnmap(Buffers.RigidOffets);
-		NvFlexUnmap(Buffers.RigidIndices);
-		NvFlexUnmap(Buffers.RigidRestPositions);
-		NvFlexUnmap(Buffers.RigidRestNormals);
-		NvFlexUnmap(Buffers.RigidStiffnesses);
-		NvFlexUnmap(Buffers.RigidRotations);
-		NvFlexUnmap(Buffers.RigidTranslations);
-		NvFlexUnmap(Buffers.PlasticThresholds);  //dw
-		NvFlexUnmap(Buffers.PlasticCreeps);  //dw
+		NvFlexUnmap(simBuffers.RigidOffets);
+		NvFlexUnmap(simBuffers.RigidIndices);
+		NvFlexUnmap(simBuffers.RigidRestPositions);
+		NvFlexUnmap(simBuffers.RigidRestNormals);
+		NvFlexUnmap(simBuffers.RigidStiffnesses);
+		NvFlexUnmap(simBuffers.RigidRotations);
+		NvFlexUnmap(simBuffers.RigidTranslations);
+		NvFlexUnmap(simBuffers.PlasticThresholds);  //dw
+		NvFlexUnmap(simBuffers.PlasticCreeps);  //dw
 
 		//actual Nv function
-		NvFlexSetRigids(Solver, Buffers.RigidOffets, Buffers.RigidIndices, Buffers.RigidRestPositions, Buffers.RigidRestNormals, Buffers.RigidStiffnesses, Buffers.PlasticThresholds, Buffers.PlasticCreeps, Buffers.RigidRotations, Buffers.RigidTranslations, numRigids, indices->Count);
+		NvFlexSetRigids(Solver, simBuffers.RigidOffets, simBuffers.RigidIndices, simBuffers.RigidRestPositions, simBuffers.RigidRestNormals, simBuffers.RigidStiffnesses, simBuffers.PlasticThresholds, simBuffers.PlasticCreeps, simBuffers.RigidRotations, simBuffers.RigidTranslations, numRigids, indices->Count);
 	}
 
 	void Flex::GetRigids(List<float>^ %translations, List<float>^ %rotations, List<float>^ %restPositions, List<float>^ %restNormals) {
@@ -794,12 +1341,12 @@ namespace FlexCLI {
 		restPositions = gcnew List<float>(); //dw
 		restNormals = gcnew List<float>(); //dw
 
-		NvFlexGetRigids(Solver, NULL, NULL, Buffers.RigidRestPositions, Buffers.RigidRestNormals, NULL, NULL, NULL, Buffers.RigidRotations, Buffers.RigidTranslations); //dw: not clear if other buffers are needed to...
+		NvFlexGetRigids(Solver, NULL, NULL, simBuffers.RigidRestPositions, simBuffers.RigidRestNormals, NULL, NULL, NULL, simBuffers.RigidRotations, simBuffers.RigidTranslations); //dw: not clear if other simBuffers are needed to...
 
-		float4* rot = (float4*)NvFlexMap(Buffers.RigidRotations, eNvFlexMapWait);
-		float3* trans = (float3*)NvFlexMap(Buffers.RigidTranslations, eNvFlexMapWait);
-		float3* restP = (float3*)NvFlexMap(Buffers.RigidRestPositions, eNvFlexMapWait);
-		float4* restN = (float4*)NvFlexMap(Buffers.RigidRestNormals, eNvFlexMapWait);
+		float4* rot = (float4*)NvFlexMap(simBuffers.RigidRotations, eNvFlexMapWait);
+		float3* trans = (float3*)NvFlexMap(simBuffers.RigidTranslations, eNvFlexMapWait);
+		float3* restP = (float3*)NvFlexMap(simBuffers.RigidRestPositions, eNvFlexMapWait);
+		float4* restN = (float4*)NvFlexMap(simBuffers.RigidRestNormals, eNvFlexMapWait);
 
 		for (int i = 0; i < Scene->NumRigids(); i++) {
 			rotations->Add(rot[i].x);
@@ -821,19 +1368,63 @@ namespace FlexCLI {
 			restNormals->Add(restN[i].w);
 		}
 
-		NvFlexUnmap(Buffers.RigidRotations);
-		NvFlexUnmap(Buffers.RigidTranslations);
-		NvFlexUnmap(Buffers.RigidRestPositions);
-		NvFlexUnmap(Buffers.RigidRestNormals);
+		NvFlexUnmap(simBuffers.RigidRotations);
+		NvFlexUnmap(simBuffers.RigidTranslations);
+		NvFlexUnmap(simBuffers.RigidRestPositions);
+		NvFlexUnmap(simBuffers.RigidRestNormals);
 	}
+
+//	void Flex::SetParticlesBuffer(ID3D11Buffer* inputParticles, ID3D11Buffer* inputVelocities, int n)
+//	{
+//		//create buffers
+//		n = flexParticles->Count;
+//		if (!n) return;
+//		int nActive = 0;
+//
+//		ID3D11Buffer* particles = (ID3D11Buffer*)NvFlexMap(simBuffers.Particles, eNvFlexMapWait); //check if it makes sense to use simNuffer struct, maybe create upload struct
+//		ID3D11Buffer* velocities = (ID3D11Buffer*)NvFlexMap(simBuffers.Velocities, eNvFlexMapWait);
+//		int* phases = (int*)NvFlexMap(simBuffers.Phases, eNvFlexMapWait);
+//		int* actives = (int*)NvFlexMap(simBuffers.Active, eNvFlexMapWait);
+////		particles->GetDesc()
+//		for (int i = 0; i < n; i++) {
+//			if (flexParticles[i]->IsValid()) {
+//				particles[i] = float4(flexParticles[i]->PositionX, flexParticles[i]->PositionY, flexParticles[i]->PositionZ, flexParticles[i]->InverseMass);
+//				velocities[i] = float3(flexParticles[i]->VelocityX, flexParticles[i]->VelocityY, flexParticles[i]->VelocityZ);
+//				phases[i] = flexParticles[i]->Phase;
+//				if (flexParticles[i]->IsActive)
+//				{
+//					actives[i] = i;
+//					nActive++;
+//				}
+//			}
+//			else
+//				throw gcnew Exception("FlexCLI: void Flex::SetParticles(array<FlexParticle^>^ flexParticles ---> particle nr. " + i + " is invalid!\n" + flexParticles[i]->ToString());
+//		}
+//
+//		NvFlexUnmap(simBuffers.Particles);
+//		NvFlexUnmap(simBuffers.Velocities);
+//		NvFlexUnmap(simBuffers.Phases);
+//		NvFlexUnmap(simBuffers.Active);
+//
+//		copyDesc->srcOffset = 0;
+//		copyDesc->dstOffset = 0;
+//		copyDesc->elementCount = n;
+//
+//		NvFlexSetParticles(Solver, simBuffers.Particles, copyDesc);
+//		NvFlexSetVelocities(Solver, simBuffers.Velocities, copyDesc);
+//		NvFlexSetPhases(Solver, simBuffers.Phases, copyDesc);
+//		copyDesc->elementCount = nActive;
+//		NvFlexSetActive(Solver, simBuffers.Active, copyDesc);
+//
+//	}
 
 	void Flex::SetSprings(List<int>^ springPairIndices, List<float>^ springLengths, List<float>^ springCoefficients) {
 		if (springPairIndices->Count != 2 * springLengths->Count || springPairIndices->Count != 2 * springCoefficients->Count)
 			throw gcnew Exception("void Flex::SetSprings(...) ---> Invalid input!");
 
-		int* spi = (int*)NvFlexMap(Buffers.SpringPairIndices, eNvFlexMapWait);
-		float* sl = (float*)NvFlexMap(Buffers.SpringLengths, eNvFlexMapWait);
-		float* sc = (float*)NvFlexMap(Buffers.SpringCoefficients, eNvFlexMapWait);
+		int* spi = (int*)NvFlexMap(simBuffers.SpringPairIndices, eNvFlexMapWait);
+		float* sl = (float*)NvFlexMap(simBuffers.SpringLengths, eNvFlexMapWait);
+		float* sc = (float*)NvFlexMap(simBuffers.SpringCoefficients, eNvFlexMapWait);
 
 		for (int i = 0; i < springLengths->Count; i++) {
 			spi[i * 2] = springPairIndices[i * 2];
@@ -842,11 +1433,11 @@ namespace FlexCLI {
 			sc[i] = springCoefficients[i];
 		}
 
-		NvFlexUnmap(Buffers.SpringPairIndices);
-		NvFlexUnmap(Buffers.SpringLengths);
-		NvFlexUnmap(Buffers.SpringCoefficients);
+		NvFlexUnmap(simBuffers.SpringPairIndices);
+		NvFlexUnmap(simBuffers.SpringLengths);
+		NvFlexUnmap(simBuffers.SpringCoefficients);
 
-		NvFlexSetSprings(Solver, Buffers.SpringPairIndices, Buffers.SpringLengths, Buffers.SpringCoefficients, springLengths->Count);
+		NvFlexSetSprings(Solver, simBuffers.SpringPairIndices, simBuffers.SpringLengths, simBuffers.SpringCoefficients, springLengths->Count);
 	}
 
 	void Flex::SetDynamicTriangles(List<int>^ triangleIndices, List<float>^ triangleNormals) {
@@ -855,9 +1446,9 @@ namespace FlexCLI {
 
 		float3* nor = NULL;
 
-		int* tri = (int*)NvFlexMap(Buffers.DynamicTriangleIndices, eNvFlexMapWait);
+		int* tri = (int*)NvFlexMap(simBuffers.DynamicTriangleIndices, eNvFlexMapWait);
 		if (triangleNormals->Count == triangleIndices->Count)
-			nor = (float3*)NvFlexMap(Buffers.DynamicTriangleNormals, eNvFlexMapWait);
+			nor = (float3*)NvFlexMap(simBuffers.DynamicTriangleNormals, eNvFlexMapWait);
 
 		for (int i = 0; i < triangleIndices->Count; i++)
 			tri[i] = triangleIndices[i];
@@ -866,21 +1457,21 @@ namespace FlexCLI {
 			for (int i = 0; i < triangleNormals->Count / 3; i++)
 				nor[i] = float3(triangleNormals[3 * i], triangleNormals[3 * i + 1], triangleNormals[3 * i + 2]);
 
-		NvFlexUnmap(Buffers.DynamicTriangleIndices);
-		if (nor) NvFlexUnmap(Buffers.DynamicTriangleNormals);
+		NvFlexUnmap(simBuffers.DynamicTriangleIndices);
+		if (nor) NvFlexUnmap(simBuffers.DynamicTriangleNormals);
 
-		NvFlexSetDynamicTriangles(Solver, Buffers.DynamicTriangleIndices, Buffers.DynamicTriangleNormals, triangleIndices->Count / 3);
+		NvFlexSetDynamicTriangles(Solver, simBuffers.DynamicTriangleIndices, simBuffers.DynamicTriangleNormals, triangleIndices->Count / 3);
 	}
 
 	void Flex::SetInflatables(List<int>^ startIndices, List<int>^ numTriangles, List<float>^ restVolumes, List<float>^ overPressures, List<float>^ constraintScales) {
 		if (startIndices->Count != numTriangles->Count || startIndices->Count != restVolumes->Count || startIndices->Count != overPressures->Count || startIndices->Count != constraintScales->Count)
 			throw gcnew Exception("void Flex::SetInflatables(...) ---> Invalid input!");
 
-		int* si = (int*)NvFlexMap(Buffers.InflatableStartIndices, eNvFlexMapWait);
-		int* nt = (int*)NvFlexMap(Buffers.InflatableNumTriangles, eNvFlexMapWait);
-		float* rv = (float*)NvFlexMap(Buffers.InflatableRestVolumes, eNvFlexMapWait);
-		float* op = (float*)NvFlexMap(Buffers.InflatableOverPressures, eNvFlexMapWait);
-		float* cs = (float*)NvFlexMap(Buffers.InflatableConstraintScales, eNvFlexMapWait);
+		int* si = (int*)NvFlexMap(simBuffers.InflatableStartIndices, eNvFlexMapWait);
+		int* nt = (int*)NvFlexMap(simBuffers.InflatableNumTriangles, eNvFlexMapWait);
+		float* rv = (float*)NvFlexMap(simBuffers.InflatableRestVolumes, eNvFlexMapWait);
+		float* op = (float*)NvFlexMap(simBuffers.InflatableOverPressures, eNvFlexMapWait);
+		float* cs = (float*)NvFlexMap(simBuffers.InflatableConstraintScales, eNvFlexMapWait);
 
 		for (int i = 0; i < startIndices->Count; i++) {
 			si[i] = startIndices[i];
@@ -890,13 +1481,13 @@ namespace FlexCLI {
 			cs[i] = constraintScales[i];
 		}
 
-		NvFlexUnmap(Buffers.InflatableStartIndices);
-		NvFlexUnmap(Buffers.InflatableNumTriangles);
-		NvFlexUnmap(Buffers.InflatableRestVolumes);
-		NvFlexUnmap(Buffers.InflatableOverPressures);
-		NvFlexUnmap(Buffers.InflatableConstraintScales);
+		NvFlexUnmap(simBuffers.InflatableStartIndices);
+		NvFlexUnmap(simBuffers.InflatableNumTriangles);
+		NvFlexUnmap(simBuffers.InflatableRestVolumes);
+		NvFlexUnmap(simBuffers.InflatableOverPressures);
+		NvFlexUnmap(simBuffers.InflatableConstraintScales);
 
-		NvFlexSetInflatables(Solver, Buffers.InflatableStartIndices, Buffers.InflatableNumTriangles, Buffers.InflatableRestVolumes, Buffers.InflatableOverPressures, Buffers.InflatableConstraintScales, startIndices->Count);
+		NvFlexSetInflatables(Solver, simBuffers.InflatableStartIndices, simBuffers.InflatableNumTriangles, simBuffers.InflatableRestVolumes, simBuffers.InflatableOverPressures, simBuffers.InflatableConstraintScales, startIndices->Count);
 	}
 
 	//Utils
@@ -950,8 +1541,12 @@ namespace FlexCLI {
 
 	void Flex::Destroy()
 	{
-		Buffers.Destroy();
+		simBuffers.Destroy();		
 		Params.numPlanes = 0;
+
+		renderBuffers.Destroy();
+		delete nativePointers;
+		nativePointers = nullptr;
 
 		if (Solver) {
 			NvFlexDestroySolver(Solver);
@@ -961,5 +1556,46 @@ namespace FlexCLI {
 			NvFlexShutdown(Library);
 			Library = 0;
 		}
+	}
+	void Flex::GetParticlesBuffer()
+	{
+		copyDesc->elementCount = n;
+		NvFlexGetParticles(Solver, renderBuffers.Particles, copyDesc);
+	}
+
+	IntPtr Flex::GetDX11Pointer(int index)
+	{
+		IntPtr ptr;
+		switch (index) {
+		case 0:
+			ptr = (IntPtr)nativePointers->particles;
+			break;
+		case 1:
+			break;
+		default:
+			break;
+		}
+
+		return ptr;
+	}
+	Flex::~Flex()
+	{
+		this->Destroy();
+	}
+
+
+	//////////////////////
+	DX11NativePointer::DX11NativePointer()
+	{
+		device = NULL;
+		deviceContext = NULL;
+		particles = NULL;
+	}
+
+	DX11NativePointer::~DX11NativePointer()
+	{
+		delete device;
+		delete deviceContext;
+		delete particles;
 	}
 }
