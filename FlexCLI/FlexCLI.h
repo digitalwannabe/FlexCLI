@@ -366,8 +366,8 @@ namespace FlexCLI {
 		String^ ToString() override;
 		
 		//dw
-		ID3D11Buffer* Position;
-		ID3D11Buffer* Velocity;
+		/*ID3D11Buffer* Position;
+		ID3D11Buffer* Velocity;*/
 	};
 
 	//dw

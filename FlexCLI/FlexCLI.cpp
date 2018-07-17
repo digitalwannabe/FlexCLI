@@ -33,7 +33,7 @@ namespace FlexCLI {
 	NvFlexFeatureMode featureMode = eNvFlexFeatureModeDefault;
 	int maxContactsPerParticle = 6;
 
-	bool gpuUpload = true;
+	/*bool gpuUpload = true;*/
 
 
 	struct RenderBuffers {
@@ -499,9 +499,9 @@ namespace FlexCLI {
 			//	Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferDevice);
 			//}
 			//else {
-				Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
+				
 			//}
-			
+			Particles = NvFlexAllocBuffer(Library, maxParticles, sizeof(float4), eNvFlexBufferHost);
 			Velocities = NvFlexAllocBuffer(Library, maxParticles, sizeof(float3), eNvFlexBufferHost);
 			Phases = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
 			Active = NvFlexAllocBuffer(Library, maxParticles, sizeof(int), eNvFlexBufferHost);
@@ -681,7 +681,12 @@ namespace FlexCLI {
 
 		nativePointers = nullptr; //set to null for cpu version
 
-		Library = NvFlexInit();
+		initDesc.deviceIndex = 0; //value from demo(?).....ignored if cuda context present
+		initDesc.enableExtensions = true; //Enable or disable NVIDIA/AMD extensions in DirectX, can lead to improved performance.
+		initDesc.computeType = eNvFlexD3D11; //let user choose cuda for cpu version...?		  
+		initDesc.runOnRenderContext = false;
+
+		Library = NvFlexInit(/*NV_FLEX_VERSION, 0, &initDesc*/);
 
 		//set default Params
 #pragma region Params
@@ -789,12 +794,13 @@ namespace FlexCLI {
 		//todo: allocate device buffers to use as flex inputs...only works in flex1.2 ...use staging buffer
 		/*NvFlexBuffer* test = (NvFlexBuffer*)nativePointers->particles; ? maybe also via register*/
 
-		initDesc.deviceIndex = -1; //value from demo(?).....ignored if cuda context present
+		initDesc.deviceIndex = 0; //value from demo(?).....ignored if cuda context present
 		initDesc.enableExtensions = true; //Enable or disable NVIDIA/AMD extensions in DirectX, can lead to improved performance.
 		initDesc.computeType = eNvFlexD3D11; //let user choose cuda for cpu version...?		 
 		initDesc.renderContext = nativePointers->deviceContext;
 		initDesc.renderDevice = nativePointers->device;//Direct3D device to use for simulation, if none is specified a new device and context will be created. 
-
+		//initDesc.computeContext=
+		//initDesc.runOnRenderContext = ;
 
 		Library = NvFlexInit(NV_FLEX_VERSION, 0, &initDesc);
 
@@ -1252,23 +1258,24 @@ namespace FlexCLI {
 
 		List<FlexParticle^>^ parts = gcnew List<FlexParticle^>;
 		copyDesc.elementCount = n;
-		NvFlexGetParticles(Solver, simBuffers.Particles, &copyDesc);
-		NvFlexGetVelocities(Solver, simBuffers.Velocities, &copyDesc);
-		NvFlexGetPhases(Solver, simBuffers.Phases, &copyDesc);
+		NvFlexGetParticles(Solver, simBuffers.Particles, NULL);
+		NvFlexGetVelocities(Solver, simBuffers.Velocities, NULL);
+		NvFlexGetPhases(Solver, simBuffers.Phases, NULL);
 
 		float4* particles = (float4*)NvFlexMap(simBuffers.Particles, eNvFlexMapWait);
 		float3* velocities = (float3*)NvFlexMap(simBuffers.Velocities, eNvFlexMapWait);
 		int* phases = (int*)NvFlexMap(simBuffers.Phases, eNvFlexMapWait);
+		int m = n;
 
-		for (int i = 0; i < n; i++) {
+		for (int i = 0; i < m; i++) {
 			array<float>^ pos = gcnew array<float>{particles[i].x, particles[i].y, particles[i].z};
 			array<float>^ vel = gcnew array<float>{velocities[i].x, velocities[i].y, velocities[i].z};
 
-			int gi = 0;
-			bool sc = false;
-			bool fl = false;
+			//int gi = 0;
+			//bool sc = false;
+			//bool fl = false;
 
-			DecomposePhase(phases[i], gi, sc, fl);
+			//DecomposePhase(phases[i], gi, sc, fl);
 			parts->Add(gcnew FlexParticle(pos, vel, particles[i].w, phases[i], true));
 		}
 
@@ -1508,35 +1515,21 @@ namespace FlexCLI {
 
 	void Flex::DecomposePhase(int phase, int %groupIndex, bool %selfCollision, bool %fluid) {
 
-		if (phase < 16777216)
-		{
-			groupIndex = phase;
-			selfCollision = false;
-			fluid = false;
+		//int phaseCopy = phase;
+		//int collisionFlag = 0;
+
+		if (phase >= 0) {
+					
+			selfCollision = ((phase&eNvFlexPhaseSelfCollide) > 0);			
+			fluid = ((phase&eNvFlexPhaseFluid) >0);
+			groupIndex = (phase&eNvFlexPhaseGroupMask); //bitwise AND operation
 			return;
-		}
-		else if (phase < 33554432)
-		{
-			groupIndex = phase - 16777216;
-			selfCollision = true;
-			fluid = false;
-			return;
-		}
-		else if (phase >= 67108864 && phase < 83886080)
-		{
-			groupIndex = phase - 67108864;
-			selfCollision = false;
-			fluid = true;
-			return;
-		}
-		else if (phase >= 83886080)
-		{
-			groupIndex = phase - 83886080;
-			selfCollision = true;
-			fluid = true;
-			return;
-		}
-		throw gcnew Exception("void Flex::DecomposePhase(...) Invalid input!");
+
+		} else throw gcnew Exception("void Flex::DecomposePhase(...) Invalid input!");
+		
+
+		//todo: add shape collision filters
+
 	}
 
 	void Flex::Destroy()
@@ -1559,8 +1552,8 @@ namespace FlexCLI {
 	}
 	void Flex::GetParticlesBuffer()
 	{
-		copyDesc.elementCount = n;
-		NvFlexGetParticles(Solver, renderBuffers.Particles, &copyDesc);
+		//copyDesc.elementCount = n;
+		NvFlexGetParticles(Solver, renderBuffers.Particles, NULL);
 	}
 
 	IntPtr Flex::GetDX11Pointer(int index)
